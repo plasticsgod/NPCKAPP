@@ -470,13 +470,9 @@ function buildPDF(){
   doc.setFillColor(...signal); doc.rect(W-M-120,23,120,28,'F'); doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('DRAFT QUOTE',W-M-108,41);
   let y=104;
   // meta
-  const origin=ORIGINS.find(o=>o.id===S.origin).name.split(' — ')[0];
-  const port=PORTS.find(p=>p.id===S.port).name;
   const today=new Date(), ds=today.toISOString().slice(0,10);
-  const ref='Q-'+ds.replace(/-/g,'')+'-'+String(Math.floor(Math.random()*900+100));
   const meta=(lx,lab,val,vx)=>{doc.setTextColor(...soft);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(lab,lx,y);doc.setTextColor(...ink);doc.setFont('helvetica','bold');doc.text(String(val),vx,y);};
-  meta(M,'Prepared for:',quote.customer||'—',M+78); meta(W-M-185,'Quote #:',ref,W-M-135); y+=17;
-  meta(M,'Lane:',origin+'  →  '+port,M+78); meta(W-M-185,'Date:',ds,W-M-135); y+=26;
+  meta(M,'Prepared for:',quote.customer||'—',M+78); meta(W-M-185,'Date:',ds,W-M-135); y+=26;
   // column anchors
   const cUnit=W-M-150, cTot=W-M-8;
   // section label
