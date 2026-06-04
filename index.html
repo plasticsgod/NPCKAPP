@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nutrapack — Tub &amp; Lid Pricing Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  /* ============================================================
+     NUTRAPACK PRICING TOOL — brand-matched skin
+     UPDATE OFFICIAL COSTS: edit DATA / FREIGHT_MATRIX below and
+     commit in GitHub. freight.json is written daily by the Action.
+     ============================================================ */
+  :root{
+    --bg:#f4f1ec; --bg-2:#ebe7df; --ink:#111111; --ink-2:#2a2a2a; --ink-3:#6a6a6a;
+    --hairline:#1a1a1a; --hairline-soft:#d4cfc6; --accent:#ff5b1f; --accent-soft:#ffe3d3;
+    --good:#1f7a4d; --warn:#b02a2a;
+    --display:'Boldonse','Anton','Archivo Black','Helvetica Neue',sans-serif;
+    --serif:'Instrument Serif','Times New Roman',serif;
+    --ui:'Geist',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:var(--ui);background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;padding:28px 20px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .star{display:inline-block;width:13px;height:13px;background:var(--accent);flex:none;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+
+  header.top{background:var(--ink);color:var(--bg);border:1px solid var(--hairline);padding:26px 28px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px}
+  header.top h1{font-family:var(--display);font-weight:400;font-size:28px;letter-spacing:-0.015em;line-height:1.08;text-transform:uppercase}
+  header.top h1 small{display:block;font-family:var(--mono);font-weight:400;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a6a29a;margin-top:12px}
+  .stamp{font-family:var(--mono);font-size:11px;color:#fff;background:var(--accent);padding:8px 16px;border-radius:999px;letter-spacing:.08em;text-transform:uppercase}
+
+  .panel{background:var(--bg);border:1px solid var(--hairline);margin-top:20px;overflow:hidden}
+  .panel > h2{font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:14px 18px;border-bottom:1px solid var(--hairline);background:var(--bg-2);color:var(--ink);display:flex;align-items:center;gap:10px}
+  .panel > h2 .dot{width:13px;height:13px;background:var(--accent);flex:none;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+  .panel > h2 .sub{font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent);font-size:11px;margin-left:4px}
+  .panel .body{padding:18px}
+
+  .fld label{display:block;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}
+  .fld .hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent);font-size:10px}
+  .inp{width:100%;font-family:var(--ui);font-size:15px;color:var(--ink);background:transparent;border:none;border-bottom:1px solid var(--ink);padding:9px 0;border-radius:0;outline:none}
+  .inp:focus{border-bottom-color:var(--accent)}
+  .inp.dollar{padding-left:18px}
+  .dollar-wrap{position:relative}
+  .dollar-wrap::before{content:"$";position:absolute;left:0;top:9px;font-family:var(--mono);color:var(--ink-3);font-size:14px}
+  select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%23111111' stroke-width='1.6' fill='none'/></svg>");background-repeat:no-repeat;background-position:right 2px center}
+
+  .lane-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  @media(max-width:680px){.lane-grid{grid-template-columns:1fr}}
+  .market{margin-top:18px;border:1px solid var(--hairline);background:var(--ink);color:var(--bg);overflow:hidden}
+  .market .mh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #333;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#a6a29a}
+  .market .mh .tag{font-family:var(--mono);font-size:10px;border:1px solid #333;padding:3px 9px;border-radius:999px}
+  .market .mb{padding:16px;display:flex;flex-wrap:wrap;gap:20px;align-items:baseline}
+  .market .big{font-family:var(--display);font-size:28px;letter-spacing:-0.02em;line-height:1}
+  .market .lab{font-family:var(--mono);font-size:11px;color:#a6a29a;text-transform:uppercase;letter-spacing:.06em}
+  .drift{font-size:13px;padding:4px 0;font-family:var(--ui)}
+  .drift b{font-family:var(--mono)}
+  .up{color:var(--accent)}.down{color:#5fd39a}
+  .market .foot{padding:10px 16px;border-top:1px solid #333;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:#8a867e;text-transform:uppercase}
+
+  .ship-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:22px;margin-top:4px}
+  .ship-note{margin-top:18px;font-size:13px;color:var(--ink-2);display:flex;gap:12px;align-items:flex-start}
+  .ship-note::before{content:'';flex:none;width:14px;height:14px;margin-top:3px;background:var(--accent);clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+
+  .quote{display:grid;grid-template-columns:330px 1fr;gap:24px}
+  @media(max-width:760px){.quote{grid-template-columns:1fr}}
+  .builder .fld{margin-bottom:18px}
+  .seg{display:flex;border:1px solid var(--ink);overflow:hidden;border-radius:999px}
+  .seg button{flex:1;font-family:var(--ui);font-size:13px;font-weight:500;padding:10px;border:none;background:transparent;color:var(--ink);cursor:pointer}
+  .seg button.on{background:var(--ink);color:var(--bg)}
+  .seg button+button{border-left:1px solid var(--ink)}
+
+  .result{background:var(--ink);color:var(--bg);overflow:hidden;align-self:start;border:1px solid var(--hairline)}
+  .result .rhead{padding:16px 18px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:baseline}
+  .result .rhead .nm{font-family:var(--display);font-weight:400;font-size:19px;text-transform:uppercase;letter-spacing:-0.01em}
+  .result .rhead .qt{font-family:var(--mono);font-size:12px;color:#a6a29a}
+  .breakdown{padding:13px 18px;font-size:13px}
+  .breakdown .row{display:flex;justify-content:space-between;padding:5px 0;color:#cfcbc3}
+  .breakdown .row.landed{border-top:1px dashed #444;margin-top:5px;padding-top:9px;color:#fff;font-weight:600}
+  .breakdown .row .num{color:var(--bg)}
+  .margins{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#333;border-top:1px solid #333}
+  .mcell{background:var(--ink);padding:14px 10px;text-align:center}
+  .mcell .lab{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#a6a29a}
+  .mcell .big{font-family:var(--display);font-size:21px;margin-top:6px;letter-spacing:-0.02em}
+  .mcell.hero{background:var(--accent)}.mcell.hero .lab{color:#fff;opacity:.9}.mcell.hero .big{color:#fff}
+  .totals{padding:14px 18px;background:#000;border-top:1px solid #333;font-size:13px}
+  .totals .row{display:flex;justify-content:space-between;padding:4px 0;color:#cfcbc3}
+  .totals .row b{color:#fff}.totals .row .num{font-size:15px;color:#fff}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--hairline-soft)}
+  th{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:500;background:var(--bg-2);position:sticky;top:0;border-bottom:1px solid var(--hairline)}
+  td:first-child,th:first-child{text-align:left}
+  tbody tr:hover{background:var(--bg-2)}
+  .grouprow td{background:var(--ink);color:var(--bg);font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:.12em;text-transform:uppercase;text-align:left}
+  .tarinp{width:78px;font-family:var(--mono);font-size:12px;border:none;border-bottom:1px solid var(--ink);border-radius:0;padding:4px 2px;text-align:right;background:var(--accent-soft)}
+  .tarinp:focus{outline:none;border-bottom-color:var(--accent)}
+  td .num{font-family:var(--mono)}
+  .hero-col{background:var(--accent-soft)}
+  .scroll{overflow-x:auto}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--ui);font-weight:500;font-size:14px;padding:12px 22px;border:1px solid var(--ink);background:transparent;color:var(--ink);border-radius:999px;cursor:pointer;transition:transform 200ms cubic-bezier(.2,.8,.2,1),background 200ms,color 200ms}
+  .btn:hover{background:var(--ink);color:var(--bg);transform:translateY(-2px)}
+  .legend{font-family:var(--ui);font-size:12px;color:var(--ink-3);max-width:62ch}
+  footer{margin-top:36px;font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:center;line-height:1.9;letter-spacing:.02em;text-transform:uppercase}
+  footer code{font-family:var(--mono);background:var(--bg-2);padding:1px 6px;text-transform:none}
+
+  .btn.add{width:100%;border-color:var(--accent);background:var(--accent);color:#fff}
+  .btn.add:hover{background:var(--accent);color:#fff;filter:brightness(1.06);transform:translateY(-2px)}
+  .btn.primary{border-color:var(--accent);background:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent);color:#fff;filter:brightness(1.06)}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .draft{margin-top:20px;border:1px solid var(--hairline);overflow:hidden}
+  .draft-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg-2);padding:13px 16px;font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+  .qcust{font-family:var(--ui);font-size:14px;border:none;border-bottom:1px solid var(--ink);border-radius:0;padding:7px 0;min-width:260px;background:transparent;color:var(--ink)}
+  .qcust:focus{outline:none;border-bottom-color:var(--accent)}
+  .qempty{padding:20px 16px;color:var(--ink-3);font-size:13px}
+  .qline{display:grid;grid-template-columns:1fr auto auto 28px;gap:14px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--hairline-soft);font-size:13px}
+  .qline .qn{color:var(--ink)} .qline .qn small{color:var(--ink-3);font-family:var(--mono);font-size:11px}
+  .qline .num{font-family:var(--mono);color:var(--ink-3)}
+  .qline .qt2{font-weight:600;min-width:92px;text-align:right;color:var(--ink)}
+  .qx{border:none;background:none;color:var(--warn);cursor:pointer;font-size:13px}
+  .draft-foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:14px 16px;background:var(--ink);color:#fff}
+  .qtotal{font-family:var(--mono);font-size:12px;color:#a6a29a;text-transform:uppercase;letter-spacing:.06em}.qtotal b{font-family:var(--display);font-size:19px;color:#fff;margin-left:10px;letter-spacing:-0.02em}
+  .qbtns{display:flex;gap:10px}
+  .draft-foot .btn{background:transparent;color:#fff;border-color:#444}
+  .draft-foot .btn:hover{background:#fff;color:var(--ink);border-color:#fff}
+  .draft-foot .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .draft-foot .btn.primary:hover{background:var(--accent);color:#fff;filter:brightness(1.08)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Nutrapack Pricing Tool<small>Tub &amp; Lid · Landed Cost &amp; Quote Builder</small></h1>
+    <div class="stamp">Internal use</div>
+  </header>
+
+  <!-- ============ LANE + MARKET REFERENCE ============ -->
+  <section class="panel">
+    <h2><span class="dot"></span>Lane <span class="sub">— origin &amp; US destination port set the freight rate</span></h2>
+    <div class="body">
+      <div class="lane-grid">
+        <div class="fld"><label>Origin</label><select class="inp" id="origin"></select></div>
+        <div class="fld"><label>US destination port</label><select class="inp" id="port"></select></div>
+      </div>
+
+      <div class="market" id="market">
+        <div class="mh"><span>Market reference (FBX)</span><span class="tag" id="mktTag">loading…</span></div>
+        <div class="mb" id="mktBody"><span class="lab">Checking freight.json…</span></div>
+        <div class="foot" id="mktFoot">Ocean leg only — excludes duties, port, terminal &amp; inland. Benchmark, not your contracted rate.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SHIPPING / CONTAINER COSTS ============ -->
+  <section class="panel">
+    <h2><span class="dot"></span>Container &amp; Shipping Costs <span class="sub">— freight auto-fills from the lane; override any field</span></h2>
+    <div class="body">
+      <div class="ship-grid">
+        <div class="fld"><label>Container freight <span class="hint" id="freightLane">(lane rate)</span></label><div class="dollar-wrap"><input class="inp dollar num" id="freight" type="number" step="50" value="4000"></div></div>
+        <div class="fld"><label>Port charges <span class="hint">clearance + handling</span></label><div class="dollar-wrap"><input class="inp dollar num" id="portc" type="number" step="25" value="400"></div></div>
+        <div class="fld"><label>Trucking</label><div class="dollar-wrap"><input class="inp dollar num" id="truck" type="number" step="50" value="1500"></div></div>
+        <div class="fld"><label>Warehousing</label><div class="dollar-wrap"><input class="inp dollar num" id="ware" type="number" step="50" value="0"></div></div>
+      </div>
+      <div class="ship-note">
+        Spread across pcs per container to give the <b>add-on per unit</b> on tubs. Total per container:
+        <b class="num" id="shipTotal">$5,900</b>. Lids carry no freight add-on (matching your sheet).
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ QUOTE BUILDER ============ -->
+  <section class="panel">
+    <h2><span class="dot"></span>Quote Builder</h2>
+    <div class="body">
+      <div class="quote">
+        <div class="builder">
+          <div class="fld"><label>Product</label><select class="inp" id="prod"></select></div>
+          <div class="fld"><label>Quantity entered as</label>
+            <div class="seg" id="mode"><button data-m="units" class="on">Units</button><button data-m="containers">Containers</button></div>
+          </div>
+          <div class="fld"><label id="qtyLabel">Number of units</label><input class="inp num" id="qty" type="number" step="1" value="50000"></div>
+          <div class="fld"><label>Quote at margin</label>
+            <select class="inp" id="qmargin"><option value="0">50% margin</option><option value="1">40% margin</option><option value="2">30% margin</option></select>
+          </div>
+          <button class="btn add" id="addLine">+ Add to quote</button>
+        </div>
+        <div class="result" id="result"></div>
+      </div>
+
+      <div class="draft">
+        <div class="draft-head">
+          <span>Draft Quote</span>
+          <input class="qcust" id="qcust" placeholder="Prepared for (customer name)…">
+        </div>
+        <div id="quoteEmpty" class="qempty">No lines yet — configure a product above and hit “Add to quote”.</div>
+        <div id="quoteLines"></div>
+        <div class="draft-foot">
+          <div class="qtotal">Total <b class="num" id="qTotal">—</b></div>
+          <div class="qbtns">
+            <button class="btn" id="clearQuote">Clear</button>
+            <button class="btn primary" id="pdfBtn" disabled>⬇ Download PDF (draft)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FULL PRICE LIST ============ -->
+  <section class="panel">
+    <h2><span class="dot"></span>Live Price List</h2>
+    <div class="body" style="padding-top:14px">
+      <div class="scroll">
+        <table id="priceTable">
+          <thead><tr>
+            <th>Item</th><th>Pcs / Ctnr</th><th>Factory</th><th>Add-on</th>
+            <th>Tariff ✎</th><th>Landed</th><th class="hero-col">50% Sell</th><th>40% Sell</th><th>30% Sell</th><th>Full Ctnr @50%</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="toolbar">
+        <span class="legend">Tariff cells (✎) are editable. <b>Lids ship from China at $0 tariff in your sheet — verify whether duties now apply.</b></span>
+        <button class="btn" id="reset">Reset to saved values</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Permanent changes: edit <code>index.html</code> / <code>freight.json</code> and commit in GitHub (history = audit trail).
+    On-screen edits are temporary what-ifs. Freight matrix values are placeholders except Mumbai→LA/Long Beach — replace with your forwarder's real rates.
+  </footer>
+
+</div>
+
+<script>
+/* ===== SAVED DATA (edit + commit to update permanently) ===== */
+const DATA = {
+  tubs: [
+    {id:'8oz', name:'8oz Tub', pcs:129600, factory:0.227, tariff:0.014, lvlup:0.40},
+    {id:'10oz',name:'10oz Tub',pcs:110160, factory:0.252, tariff:0.016, lvlup:0.47},
+    {id:'20oz',name:'20oz Tub',pcs:51840,  factory:0.339, tariff:0.019, lvlup:0.50},
+    {id:'25oz',name:'25oz Tub',pcs:40320,  factory:0.470, tariff:0.025, lvlup:0.633},
+    {id:'32oz',name:'32oz Tub',pcs:34560,  factory:0.512, tariff:0.026, lvlup:null},
+    {id:'55oz',name:'55oz Tub',pcs:22680,  factory:0.595, tariff:0.046, lvlup:0.70},
+  ],
+  lids: [
+    {id:'60mm', name:'60mm PP Lid (printed liner)', pcs:517440, factory:0.1635, tariff:0, lvlup:0.47},
+    {id:'89mm', name:'89mm PP Lid (printed liner)', pcs:267300, factory:0.2029, tariff:0, lvlup:0.54},
+    {id:'120mm',name:'120mm PP Lid (printed liner)',pcs:null,   factory:0.2625, tariff:0, lvlup:0.56},
+  ],
+  sets: {'8oz':'60mm','10oz':'60mm','20oz':'89mm','25oz':'89mm','32oz':'89mm','55oz':'120mm'},
+  margins: [{lab:'50%',d:0.5},{lab:'40%',d:0.6},{lab:'30%',d:0.7}]
+};
+
+/* ===== LANES =====
+   Ocean freight $ per container by origin x US port.
+   PLACEHOLDERS except india/lalb (=$4000, your known rate). Replace with real forwarder rates. */
+const ORIGINS = [
+  {id:'india', name:'India — Mumbai (Nhava Sheva)'},
+  {id:'china', name:'China — Ningbo / Shanghai'},
+];
+const PORTS = [
+  {id:'lalb', name:'Los Angeles / Long Beach', coast:'USWC'},
+  {id:'sea',  name:'Seattle / Tacoma',         coast:'USWC'},
+  {id:'hou',  name:'Houston',                  coast:'GULF'},
+  {id:'sav',  name:'Savannah',                 coast:'USEC'},
+  {id:'nynj', name:'New York / New Jersey',    coast:'USEC'},
+];
+const FREIGHT_MATRIX = {
+  india: {lalb:4000, sea:4200, hou:4500, sav:4700, nynj:4800},
+  china: {lalb:3200, sea:3300, hou:3700, sav:3900, nynj:4000},
+};
+// map a lane to its FBX index code (only China lanes have a direct FBX lane)
+function fbxLane(originId, coast){
+  if(originId==='china' && coast==='USWC') return {code:'FBX01', name:'China/E.Asia → US West Coast'};
+  if(originId==='china' && (coast==='USEC')) return {code:'FBX03', name:'China/E.Asia → US East Coast'};
+  if(originId==='china' && coast==='GULF') return {code:'FBX03', name:'China → US East Coast (proxy for Gulf)'};
+  return null; // India has no headline FBX lane
+}
+
+/* ===== MARKET DATA =====
+   Live values come from freight.json (written daily by the GitHub Action).
+   This embedded object is the labelled fallback if that file isn't present yet. */
+const SAMPLE_MARKET = { updated:'sample — not live', lanes:{ FBX01:2400, FBX03:3850 } };
+let MARKET = SAMPLE_MARKET;
+
+/* ===== STATE ===== */
+let S = {};
+function resetState(){
+  S = {origin:'india', port:'lalb', freight:4000, portc:400, truck:1500, ware:0, tariff:{}};
+  [...DATA.tubs,...DATA.lids].forEach(i=>S.tariff[i.id]=i.tariff);
+}
+resetState();
+let quote = { customer:'', lines:[] };
+
+const $=s=>document.querySelector(s);
+const money=(n,d=4)=>n==null||isNaN(n)?'—':'$'+n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const money2=n=>n==null||isNaN(n)?'—':'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money0=n=>n==null||isNaN(n)?'—':'$'+Math.round(n).toLocaleString('en-US');
+const containerCosts=()=>S.freight+S.portc+S.truck+S.ware;
+const tariffOf=id=>S.tariff[id]??0;
+const find=id=>[...DATA.tubs,...DATA.lids].find(x=>x.id===id);
+const addOn=(item,kind)=>kind==='tub'?containerCosts()/item.pcs:0;
+
+function unitEconomics(item,kind){
+  const ad=addOn(item,kind), landed=item.factory+ad+tariffOf(item.id);
+  return {addOn:ad,landed,sells:DATA.margins.map(m=>landed/m.d)};
+}
+function setEconomics(tub){
+  const lid=find(DATA.sets[tub.id]);
+  const t=unitEconomics(tub,'tub'), l=unitEconomics(lid,'lid'), landed=t.landed+l.landed;
+  return {lid,landed,sells:DATA.margins.map(m=>landed/m.d)};
+}
+
+/* ===== LANE + MARKET ===== */
+function buildLaneSelectors(){
+  const o=$('#origin'); o.innerHTML=ORIGINS.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+  const p=$('#port');   p.innerHTML=PORTS.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+  o.value=S.origin; p.value=S.port;
+}
+function applyLane(){
+  S.origin=$('#origin').value; S.port=$('#port').value;
+  const rate=FREIGHT_MATRIX[S.origin][S.port];
+  S.freight=rate; $('#freight').value=rate;
+  const port=PORTS.find(p=>p.id===S.port);
+  $('#freightLane').textContent=`(${ORIGINS.find(o=>o.id===S.origin).name.split(' — ')[0]} → ${port.name})`;
+  renderMarket();
+}
+function renderMarket(){
+  const port=PORTS.find(p=>p.id===S.port);
+  const lane=fbxLane(S.origin, port.coast);
+  const tag=$('#mktTag'), body=$('#mktBody'), foot=$('#mktFoot');
+  const live = MARKET.updated && !String(MARKET.updated).startsWith('sample');
+  tag.textContent = live ? 'live' : 'sample';
+  tag.style.color = live ? '#5fd39a' : '#ff5b1f';
+
+  if(!lane){
+    body.innerHTML=`<span class="lab">No headline FBX index for India lanes. The market reference covers China → US only; use it as a directional proxy at best for Mumbai.</span>`;
+    foot.textContent='Ocean leg only — excludes duties, port, terminal & inland.';
+    return;
+  }
+  const mkt=MARKET.lanes?.[lane.code];
+  if(mkt==null){ body.innerHTML=`<span class="lab">${lane.name} (${lane.code}) — no value in freight.json yet.</span>`; return; }
+  const diff=S.freight-mkt, pct=mkt?diff/mkt*100:0;
+  const dir=diff>=0?'above':'below', cls=diff>=0?'up':'down';
+  body.innerHTML=`
+    <div><div class="lab">${lane.name} · ${lane.code}</div><div class="big">${money0(mkt)} <span class="lab">/ 40ft</span></div></div>
+    <div class="drift">Your container freight <b>${money0(S.freight)}</b> is
+      <b class="${cls}">${money0(Math.abs(diff))} (${Math.abs(pct).toFixed(0)}%) ${dir}</b> the market ocean leg.</div>`;
+  foot.textContent=`Updated ${MARKET.updated} · ocean leg only (excludes duties, port, terminal, inland). Benchmark, not your contracted rate.`;
+}
+function loadMarket(){
+  fetch('freight.json',{cache:'no-store'})
+    .then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(j=>{ MARKET=j; renderMarket(); })
+    .catch(()=>{ MARKET=SAMPLE_MARKET; renderMarket(); });
+}
+
+/* ===== QUOTE BUILDER ===== */
+function buildDropdown(){
+  const sel=$('#prod'); sel.innerHTML='';
+  const mk=(label,items,kind)=>{const og=document.createElement('optgroup');og.label=label;items.forEach(i=>{const o=document.createElement('option');o.value=kind+':'+i.id;o.textContent=i.name;og.appendChild(o);});sel.appendChild(og);};
+  mk('Tubs (India)',DATA.tubs,'tub');
+  mk('Lids (China)',DATA.lids,'lid');
+  mk('Sets (Tub + Lid)',DATA.tubs.map(t=>({id:t.id,name:t.name.replace('Tub','Set')+' + '+DATA.sets[t.id]+' lid'})),'set');
+}
+function renderResult(){
+  const [kind,id]=$('#prod').value.split(':');
+  const mode=$('#mode .on').dataset.m;
+  let qty=parseFloat($('#qty').value)||0;
+  const R=$('#result');
+  let item,econ,pcs,name;
+  if(kind==='set'){item=DATA.tubs.find(t=>t.id===id);econ=setEconomics(item);pcs=item.pcs;name=item.name.replace('Tub','Set');}
+  else{item=find(id);econ=unitEconomics(item,kind);pcs=item.pcs;name=item.name;}
+  let units=qty;
+  if(mode==='containers'){ if(!pcs){R.innerHTML='<div class="breakdown" style="padding:20px">No pcs-per-container on file for this item. Switch to “Units”.</div>';return;} units=qty*pcs; }
+  const m=DATA.margins, s=econ.sells;
+  const adRow=kind==='set'?`<div class="row"><span>Tub add-on / unit</span><span class="num">${money(addOn(item,'tub'))}</span></div>`:`<div class="row"><span>Add-on / unit</span><span class="num">${money(econ.addOn)}</span></div>`;
+  const factoryRow=kind==='set'?`<div class="row"><span>Tub + lid factory</span><span class="num">${money(item.factory+econ.lid.factory)}</span></div>`:`<div class="row"><span>Factory cost</span><span class="num">${money(item.factory)}</span></div>`;
+  const tariffRow=kind==='set'?`<div class="row"><span>Tariff (tub + lid)</span><span class="num">${money(tariffOf(item.id)+tariffOf(econ.lid.id))}</span></div>`:`<div class="row"><span>Tariff / unit</span><span class="num">${money(tariffOf(item.id))}</span></div>`;
+  R.innerHTML=`
+    <div class="rhead"><span class="nm">${name}</span><span class="qt">${units.toLocaleString()} units${mode==='containers'?` · ${qty} ctnr`:''}</span></div>
+    <div class="breakdown">${factoryRow}${adRow}${tariffRow}<div class="row landed"><span>Landed cost / unit</span><span class="num">${money(econ.landed)}</span></div></div>
+    <div class="margins">${m.map((mg,i)=>`<div class="mcell ${i===0?'hero':''}"><div class="lab">${mg.lab} margin</div><div class="big num">${money(s[i],3)}</div></div>`).join('')}</div>
+    <div class="totals">
+      <div class="row"><b>Line total @ 50%</b><span class="num">${money2(s[0]*units)}</span></div>
+      <div class="row"><span>Line total @ 40%</span><span class="num">${money2(s[1]*units)}</span></div>
+      <div class="row"><span>Line total @ 30%</span><span class="num">${money2(s[2]*units)}</span></div>
+      ${pcs&&kind!=='set'?`<div class="row" style="border-top:1px dashed #444;margin-top:5px;padding-top:8px"><b>Full container @ 50%</b><span class="num">${money2(s[0]*pcs)}</span></div>`:''}
+    </div>`;
+}
+
+/* ===== PRICE LIST ===== */
+function renderTable(){
+  const tb=$('#rows'); tb.innerHTML='';
+  const group=l=>{const tr=document.createElement('tr');tr.className='grouprow';tr.innerHTML=`<td colspan="10">${l}</td>`;tb.appendChild(tr);};
+  const rowFor=(item,kind)=>{
+    const e=unitEconomics(item,kind), full=item.pcs?e.sells[0]*item.pcs:null;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${item.name}</td><td class="num">${item.pcs?item.pcs.toLocaleString():'—'}</td>
+      <td class="num">${money(item.factory)}</td><td class="num">${money(e.addOn)}</td>
+      <td><input class="tarinp num" data-id="${item.id}" type="number" step="0.001" value="${tariffOf(item.id)}"></td>
+      <td class="num">${money(e.landed)}</td><td class="num hero-col">${money(e.sells[0],3)}</td>
+      <td class="num">${money(e.sells[1],3)}</td><td class="num">${money(e.sells[2],3)}</td><td class="num">${money2(full)}</td>`;
+    tb.appendChild(tr);
+  };
+  group('Tubs — India'); DATA.tubs.forEach(i=>rowFor(i,'tub'));
+  group('Lids — China'); DATA.lids.forEach(i=>rowFor(i,'lid'));
+  group('Sets — Tub + Lid');
+  DATA.tubs.forEach(t=>{
+    const e=setEconomics(t), tr=document.createElement('tr');
+    tr.innerHTML=`<td>${t.name.replace('Tub','Set')} <span style="color:var(--ink-soft)">+ ${DATA.sets[t.id]}</span></td>
+      <td class="num">—</td><td class="num">${money(t.factory+e.lid.factory)}</td><td class="num">${money(addOn(t,'tub'))}</td>
+      <td class="num" style="color:var(--ink-soft)">${money(tariffOf(t.id)+tariffOf(e.lid.id))}</td>
+      <td class="num">${money(e.landed)}</td><td class="num hero-col">${money(e.sells[0],3)}</td>
+      <td class="num">${money(e.sells[1],3)}</td><td class="num">${money(e.sells[2],3)}</td><td class="num">—</td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll('.tarinp').forEach(inp=>inp.addEventListener('input',e=>{S.tariff[e.target.dataset.id]=parseFloat(e.target.value)||0;renderResult();}));
+}
+
+function refreshShipNote(){ $('#shipTotal').textContent=money2(containerCosts()); }
+function recomputeAll(){ refreshShipNote(); renderTable(); renderResult(); renderMarket(); }
+
+/* ===== DRAFT QUOTE BASKET ===== */
+function currentLine(){
+  const [kind,id]=$('#prod').value.split(':');
+  const mode=$('#mode .on').dataset.m;
+  let qty=parseFloat($('#qty').value)||0;
+  let item,econ,pcs,name;
+  if(kind==='set'){item=DATA.tubs.find(t=>t.id===id);econ=setEconomics(item);pcs=item.pcs;name=item.name.replace('Tub','Set');}
+  else{item=find(id);econ=unitEconomics(item,kind);pcs=item.pcs;name=item.name;}
+  let units=qty; if(mode==='containers'){ if(!pcs) return null; units=qty*pcs; }
+  const mi=+$('#qmargin').value, unit=econ.sells[mi];
+  return {name,units,unit,total:unit*units,marginLab:DATA.margins[mi].lab};
+}
+function addToQuote(){ const l=currentLine(); if(!l||!l.units) return; quote.lines.push(l); renderQuote(); }
+function removeLine(i){ quote.lines.splice(i,1); renderQuote(); }
+function renderQuote(){
+  quote.customer=$('#qcust').value;
+  const wrap=$('#quoteLines');
+  if(quote.lines.length===0){ wrap.innerHTML=''; $('#quoteEmpty').style.display='block'; $('#qTotal').textContent='—'; $('#pdfBtn').disabled=true; return; }
+  $('#quoteEmpty').style.display='none'; $('#pdfBtn').disabled=false;
+  wrap.innerHTML=quote.lines.map((l,i)=>`<div class="qline"><span class="qn">${l.name} <small>· ${l.marginLab} margin</small></span><span class="num">${l.units.toLocaleString()} × ${money(l.unit,3)}</span><span class="num qt2">${money2(l.total)}</span><button class="qx" data-i="${i}" title="remove">✕</button></div>`).join('');
+  $('#qTotal').textContent=money2(quote.lines.reduce((a,l)=>a+l.total,0));
+  wrap.querySelectorAll('.qx').forEach(b=>b.addEventListener('click',e=>removeLine(+e.currentTarget.dataset.i)));
+}
+function buildPDF(){
+  const J=(window.jspdf||{}).jsPDF;
+  if(!J){ alert('PDF library is still loading — check your connection and try again.'); return; }
+  const doc=new J({unit:'pt',format:'letter'});
+  const W=doc.internal.pageSize.getWidth(), M=50;
+  const navy=[17,17,17], ink=[17,17,17], soft=[106,106,106], signal=[255,91,31], line=[212,207,198];
+  const usd=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  // header band
+  doc.setFillColor(...navy); doc.rect(0,0,W,72,'F');
+  doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(22); doc.text('NUTRAPACK',M,42);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(166,162,154); doc.text('Tub & Lid Pricing',M,57);
+  doc.setFillColor(...signal); doc.rect(W-M-120,23,120,28,'F'); doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('DRAFT QUOTE',W-M-108,41);
+  let y=104;
+  // meta
+  const origin=ORIGINS.find(o=>o.id===S.origin).name.split(' — ')[0];
+  const port=PORTS.find(p=>p.id===S.port).name;
+  const today=new Date(), ds=today.toISOString().slice(0,10);
+  const ref='Q-'+ds.replace(/-/g,'')+'-'+String(Math.floor(Math.random()*900+100));
+  const meta=(lx,lab,val,vx)=>{doc.setTextColor(...soft);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(lab,lx,y);doc.setTextColor(...ink);doc.setFont('helvetica','bold');doc.text(String(val),vx,y);};
+  meta(M,'Prepared for:',quote.customer||'—',M+78); meta(W-M-185,'Quote #:',ref,W-M-135); y+=17;
+  meta(M,'Lane:',origin+'  →  '+port,M+78); meta(W-M-185,'Date:',ds,W-M-135); y+=26;
+  // table header
+  const cQty=W-M-250, cUnit=W-M-150, cTot=W-M-8;
+  doc.setFillColor(...navy); doc.rect(M,y-13,W-2*M,22,'F');
+  doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text('ITEM',M+8,y+2); doc.text('QTY',cQty,y+2,{align:'right'}); doc.text('UNIT PRICE',cUnit,y+2,{align:'right'}); doc.text('LINE TOTAL',cTot,y+2,{align:'right'});
+  y+=24;
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  quote.lines.forEach(l=>{
+    if(y>720){ doc.addPage(); y=60; }
+    doc.setTextColor(...ink); doc.text(l.name,M+8,y);
+    doc.setTextColor(...soft); doc.text(l.units.toLocaleString(),cQty,y,{align:'right'}); doc.text('$'+l.unit.toFixed(3),cUnit,y,{align:'right'});
+    doc.setTextColor(...ink); doc.setFont('helvetica','bold'); doc.text(usd(l.total),cTot,y,{align:'right'}); doc.setFont('helvetica','normal');
+    y+=8; doc.setDrawColor(...line); doc.line(M,y,W-M,y); y+=17;
+  });
+  // total
+  y+=6; doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(...navy);
+  doc.text('TOTAL',cUnit,y,{align:'right'}); doc.text(usd(quote.lines.reduce((a,l)=>a+l.total,0)),cTot,y,{align:'right'});
+  y+=34;
+  // disclaimer + footer
+  doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(...soft);
+  const disc='DRAFT — indicative pricing for discussion only. Not a purchase order, invoice, or binding offer. Prices are subject to confirmation of freight rates and applicable duties/tariffs at time of order.';
+  doc.text(doc.splitTextToSize(disc,W-2*M),M,y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.text('Generated '+today.toLocaleString(),M,772);
+  doc.save(`Nutrapack-Draft-Quote-${ds}.pdf`);
+}
+
+/* ===== WIRING ===== */
+function readShip(){ S.freight=+$('#freight').value||0; S.portc=+$('#portc').value||0; S.truck=+$('#truck').value||0; S.ware=+$('#ware').value||0; }
+$('#origin').addEventListener('change',()=>{applyLane();recomputeAll();});
+$('#port').addEventListener('change',()=>{applyLane();recomputeAll();});
+['freight','portc','truck','ware'].forEach(id=>$('#'+id).addEventListener('input',()=>{readShip();recomputeAll();}));
+$('#prod').addEventListener('change',renderResult);
+$('#qty').addEventListener('input',renderResult);
+$('#mode').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;$('#mode .on').classList.remove('on');e.target.classList.add('on');$('#qtyLabel').textContent=e.target.dataset.m==='units'?'Number of units':'Number of containers';$('#qty').value=e.target.dataset.m==='units'?50000:1;renderResult();});
+$('#reset').addEventListener('click',()=>{resetState();buildLaneSelectors();$('#freight').value=4000;$('#portc').value=400;$('#truck').value=1500;$('#ware').value=0;applyLane();recomputeAll();});
+$('#addLine').addEventListener('click',addToQuote);
+$('#qcust').addEventListener('input',()=>{quote.customer=$('#qcust').value;});
+$('#clearQuote').addEventListener('click',()=>{quote.lines=[];renderQuote();});
+$('#pdfBtn').addEventListener('click',buildPDF);
+
+/* init */
+buildLaneSelectors(); buildDropdown(); applyLane(); recomputeAll(); renderQuote(); loadMarket();
+</script>
+</body>
+</html>
