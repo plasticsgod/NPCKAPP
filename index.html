@@ -388,7 +388,7 @@ function renderResult(){
   const m=DATA.margins, s=econ.sells, mi=+$('#qmargin').value;
   const adRow=kind==='set'?`<div class="row"><span>Tub add-on / unit</span><span class="num">${money(addOn(item,'tub'))}</span></div>`:`<div class="row"><span>Add-on / unit</span><span class="num">${money(econ.addOn)}</span></div>`;
   const factoryRow=kind==='set'?`<div class="row"><span>Tub + lid factory</span><span class="num">${money(item.factory+econ.lid.factory)}</span></div>`:`<div class="row"><span>Factory cost</span><span class="num">${money(item.factory)}</span></div>`;
-  const tariffRow=kind==='set'?`<div class="row"><span>Tariff (tub + lid)</span><span class="num">${money(tariffOf(item.id)+tariffOf(econ.lid.id))}</span></div>`:`<div class="row"><span>Tariff / unit</span><span class="num">${money(tariffOf(item.id))}</span></div>`;
+  const tariffRow=kind==='set'?`<div class="row"><span>Tariff (tub + lid)</span><span class="num">${money(tariffOf(item.id)+tariffOf(econ.lid.id))}</span></div>`:kind==='lid'?`<div class="row"><span>Duty / tariff</span><span class="num" style="font-style:italic">included in pricing</span></div>`:`<div class="row"><span>Tariff / unit</span><span class="num">${money(tariffOf(item.id))}</span></div>`;
   R.innerHTML=`
     <div class="rhead"><span class="nm">${name}</span><span class="qt">${units.toLocaleString()} units${mode==='containers'?` · ${qty} ctnr`:''}</span></div>
     <div class="breakdown">${factoryRow}${adRow}${tariffRow}<div class="row landed"><span>Landed cost / unit</span><span class="num">${money(econ.landed)}</span></div></div>
@@ -408,7 +408,7 @@ function renderTable(){
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${item.name}</td><td class="num">${item.pcs?item.pcs.toLocaleString():'—'}</td>
       <td class="num">${money(item.factory)}</td><td class="num">${money(e.addOn)}</td>
-      <td><input class="tarinp num" data-id="${item.id}" type="number" step="0.001" value="${tariffOf(item.id)}"></td>
+      <td>${kind==='lid'?`<span style="color:var(--ink-3);font-style:italic" title="included in pricing">included</span>`:`<input class="tarinp num" data-id="${item.id}" type="number" step="0.001" value="${tariffOf(item.id)}">`}</td>
       <td class="num">${money(e.landed)}</td><td class="num hero-col">${money(e.sells[0],3)}</td>
       <td class="num">${money(e.sells[1],3)}</td><td class="num">${money(e.sells[2],3)}</td><td class="num">${money2(full)}</td>`;
     tb.appendChild(tr);
@@ -443,7 +443,7 @@ function currentLine(){
   const mi=+$('#qmargin').value, unit=econ.sells[mi];
   const freightU = kind==='set' ? addOn(item,'tub') : econ.addOn;
   const dutyU = kind==='set' ? (tariffOf(item.id)+tariffOf(econ.lid.id)) : tariffOf(item.id);
-  return {name,units,unit,total:unit*units,marginLab:DATA.margins[mi].lab,freightU,dutyU};
+  return {name,units,unit,total:unit*units,marginLab:DATA.margins[mi].lab,freightU,dutyU,dutyIncluded:kind==='lid'};
 }
 function addToQuote(){ const l=currentLine(); if(!l||!l.units) return; quote.lines.push(l); renderQuote(); }
 function removeLine(i){ quote.lines.splice(i,1); renderQuote(); }
@@ -498,7 +498,8 @@ function buildPDF(){
     y+=17;
     compRow('Product',productU,eP,false);
     compRow('Freight & handling',l.freightU,eF,false);
-    compRow('Duty / tariff',l.dutyU,eD,false);
+    if(l.dutyIncluded){ doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...soft); doc.text('Duty / tariff',M+14,y); doc.setFont('helvetica','italic'); doc.text('included in pricing',cTot,y,{align:'right'}); doc.setFont('helvetica','normal'); y+=15; }
+    else { compRow('Duty / tariff',l.dutyU,eD,false); }
     doc.setDrawColor(...line); doc.line(M+14,y-9,cTot,y-9);
     compRow('Line total',l.unit,l.unit*l.units,true);
     y+=12;
@@ -507,7 +508,8 @@ function buildPDF(){
   if(y>650){ doc.addPage(); y=60; }
   doc.setDrawColor(...ink); doc.setLineWidth(1); doc.line(M,y,W-M,y); doc.setLineWidth(0.2); y+=20;
   const sline=(lab,amt)=>{ doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(...soft); doc.text(lab,cUnit,y,{align:'right'}); doc.setTextColor(...ink); doc.text(usd(amt),cTot,y,{align:'right'}); y+=17; };
-  sline('Product subtotal',sumP); sline('Freight & handling',sumF); sline('Duty / tariff',sumD);
+  sline('Product subtotal',sumP); sline('Freight & handling',sumF);
+  if(sumD>0.0001){ sline('Duty / tariff',sumD); } else { doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(...soft); doc.text('Duty / tariff',cUnit,y,{align:'right'}); doc.setFont('helvetica','italic'); doc.text('included in pricing',cTot,y,{align:'right'}); doc.setFont('helvetica','normal'); y+=17; }
   y+=4; doc.setDrawColor(...line); doc.line(cUnit-130,y-2,cTot,y-2); y+=18;
   doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...ink); doc.text('TOTAL',cUnit,y,{align:'right'}); doc.setTextColor(...signal); doc.text(usd(sumP+sumF+sumD),cTot,y,{align:'right'});
   y+=34;
