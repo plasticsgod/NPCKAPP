@@ -1,0 +1,27 @@
+{
+  "versions": [
+    {
+      "date": "2026-06-04",
+      "label": "Initial pricing",
+      "signer": "—",
+      "tubs": [
+        {"id":"8oz",  "name":"8oz Tub",  "pcs":129600, "ppp":6480, "factory":0.227, "tariff":0.014},
+        {"id":"10oz", "name":"10oz Tub", "pcs":110160, "ppp":5508, "factory":0.252, "tariff":0.016},
+        {"id":"20oz", "name":"20oz Tub", "pcs":51840,  "ppp":2592, "factory":0.339, "tariff":0.019},
+        {"id":"25oz", "name":"25oz Tub", "pcs":40320,  "ppp":2016, "factory":0.470, "tariff":0.025},
+        {"id":"32oz", "name":"32oz Tub", "pcs":34560,  "ppp":1728, "factory":0.512, "tariff":0.026},
+        {"id":"55oz", "name":"55oz Tub", "pcs":22680,  "ppp":1134, "factory":0.595, "tariff":0.046}
+      ],
+      "lids": [
+        {"id":"60mm",  "name":"60mm PP Lid (printed liner)",  "pcs":517440, "ppp":null, "factory":0.1635, "tariff":0},
+        {"id":"89mm",  "name":"89mm PP Lid (printed liner)",  "pcs":267300, "ppp":null, "factory":0.2029, "tariff":0},
+        {"id":"120mm", "name":"120mm PP Lid (printed liner)", "pcs":null,   "ppp":null, "factory":0.2625, "tariff":0}
+      ],
+      "sets": {"8oz":"60mm","10oz":"60mm","20oz":"89mm","25oz":"89mm","32oz":"89mm","55oz":"120mm"},
+      "freight": {
+        "india": {"lalb":4000, "sea":4200, "hou":4500, "sav":4700, "nynj":4800},
+        "china": {"lalb":3200, "sea":3300, "hou":3700, "sav":3900, "nynj":4000}
+      }
+    }
+  ]
+}

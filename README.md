@@ -1,68 +1,97 @@
 # Nutrapack Pricing Tool
 
-An internal web tool for pricing plastic tubs and lids: landed cost, 50/40/30%
-margins, full-container pricing, set pricing, a multi-line draft-quote builder
-with PDF export, and a live ocean-freight market reference. It is a single static
-page — no server, no build step — and runs from GitHub Pages.
+Internal web tool for pricing plastic tubs and lids: landed cost, 50/40/30%
+margins, container/pallet/unit quoting, a draft-quote builder with branded PDF
+export, a live ocean-freight market reference, and password-gated team editing
+with signed version history. Static page, no server — runs on GitHub Pages.
 
 ## Repo structure
 
 ```
-index.html                          The whole tool (UI + pricing logic + PDF export)
-freight.json                        Market freight figures (overwritten daily by the Action)
+index.html                          The whole tool
+versions.json                       PRICING SOURCE OF TRUTH (signed version history)
+freight.json                        Market freight figures (Action overwrites daily)
+config.json                         Created automatically by first-time setup (encrypted repo key)
 README.md                           This file
-.github/workflows/update-freight.yml   Scheduled job that refreshes freight.json
-scripts/fetch-freight.mjs           Script the job runs to pull rates from Freightos
+.github/workflows/update-freight.yml   Scheduled market-rate job (optional)
+scripts/fetch-freight.mjs           Script that job runs (optional)
 ```
 
-## Deploy (make it "launch like software")
+## Deploy
 
-1. Create a repo and add these files (keep the folder paths above).
-2. Repo → **Settings → Pages** → set source to your main branch → **Save**.
-3. After ~1 minute you get a URL like `https://YOURORG.github.io/REPO/`.
-   Bookmark it for the team. They click, it opens — no downloads, no Excel.
+1. Push these files to a repo (keep folder paths).
+2. Settings → Pages → source = main branch → Save.
+3. Bookmark the URL (e.g. `https://YOURORG.github.io/REPO/`).
 
-> Internal pricing note: a public Pages site is visible to anyone with the URL.
-> For internal-only access use a private repo with organization-restricted Pages
-> (available on paid GitHub plans).
+> A public Pages site is visible to anyone with the URL. For internal-only
+> access use a private repo with organization-restricted Pages (paid plans).
 
-## How to update numbers
+## How pricing updates work (team editing)
 
-All costs live in `index.html` in the `DATA` and `FREIGHT_MATRIX` blocks near the
-top of the `<script>`. Edit the value, commit, done — and the commit history is
-your audit trail (who changed which rate, when, and the old value).
+Pricing lives in `versions.json` as a list of dated, signed versions. The tool
+always uses the latest; older ones stay selectable in the "Pricing Version"
+dropdown for reference and re-quotes. The footer shows the active version and
+who approved it.
 
-On-screen edits (shipping inputs, tariff cells) are **temporary what-ifs** only;
-they do not save. Permanent changes go in the file + commit.
+To publish new pricing, any team member with the password:
+1. Clicks **Edit for all members** at the bottom of the page.
+2. Enters the **team password**.
+3. Edits values on screen, OR clicks **Download current as Excel**, edits the
+   numbers in Excel, and uploads the file back (review on screen after upload).
+4. Types their name in **Signed / approved by** and clicks **Sign & publish**.
 
-Two things to revisit before relying on it:
-- **Freight matrix** — every lane rate is a placeholder except Mumbai → LA/Long Beach
-  ($4,000). Replace each lane with your forwarder's real numbers.
-- **Lid tariffs** — lids ship from China but are set to $0 tariff (matching the
-  original sheet). Confirm whether duties now apply and update if so.
+The tool commits a new version to `versions.json` through the GitHub API.
+Everyone sees the new pricing within about a minute (GitHub Pages republish
+delay). The git commit is a second, tamper-proof record of the change.
 
-## Market-reference feed (optional, makes freight self-updating)
+On-screen tweaks elsewhere in the tool (shipping inputs, tariff cells) remain
+private what-ifs — only the editor flow publishes to the team.
 
-The tool shows a market freight figure beside your manual rate. It reads
-`freight.json`, which the daily Action refreshes. Until you wire it up, the tool
-shows a clearly-labelled **sample** number and works normally.
+## One-time setup (admin)
 
-To make it live:
-1. Get an API key at developer.freightos.com.
-2. Repo → **Settings → Secrets and variables → Actions** → **New repository secret**
-   named `FREIGHTOS_API_KEY`. (The key stays encrypted in GitHub and never reaches
-   the published page — the Action uses it privately and only the resulting numbers
-   are written to `freight.json`.)
-3. In `scripts/fetch-freight.mjs`, fill the two spots marked `<-- CONFIRM`
-   (the exact index endpoint URL and the response field name) from the Freightos docs.
+1. Create a **fine-grained personal access token**:
+   GitHub → Settings → Developer settings → Personal access tokens →
+   Fine-grained tokens → Generate new token.
+   - Repository access: **Only select repositories** → this repo only.
+   - Permissions: **Contents → Read and write**. Nothing else.
+   - Set an expiration (e.g. 90 days) and note the renewal date.
+2. Open the deployed tool, click **Edit for all members** — with no config yet
+   it shows the setup form. Enter owner, repo name, the token, and choose a
+   long team password (4+ random words). Save.
+3. The tool encrypts the token with the password and commits `config.json`.
+   Done — from now on the button asks only for the team password.
 
-The Action runs daily and also has a manual **Run workflow** button. Note the market
-index covers China → US lanes; India/Mumbai has no headline index, so the reference
-is a directional proxy at best for tubs.
+To rotate the token or change the password: delete `config.json` from the repo
+and run setup again with a fresh token.
+
+## Security model — read this honestly
+
+- The GitHub token is stored in the repo **encrypted (AES-GCM, PBKDF2)** with
+  the team password. Entering the password decrypts it in the browser's memory
+  for that session only. Wrong password = decryption fails.
+- This keeps out everyone who doesn't have the password. It does NOT protect
+  against someone who HAS the password: they hold the repo key and the
+  signature is honor-system (they type a name). Acceptable for an internal
+  pricing tool; not for secrets bigger than that.
+- Keep the password long, share it only with editors, rotate the token on a
+  schedule, and prefer a private repo + restricted Pages if your plan allows.
+- The token is scoped to this one repo with contents-only permissions, so even
+  a worst-case leak exposes only this pricing repo, not your GitHub org.
+
+## Market-reference feed (optional)
+
+`freight.json` shows a market ocean-rate benchmark beside your manual freight.
+To make it self-updating: get a key at developer.freightos.com, add it as an
+Actions secret named `FREIGHTOS_API_KEY`, and fill the two spots marked
+`<-- CONFIRM` in `scripts/fetch-freight.mjs`. Until then the tool shows a
+clearly-labelled sample. India/Mumbai has no headline index — the benchmark
+truly covers China → US lanes only.
 
 ## Notes
 
-- The page needs an internet connection to load fonts, the PDF library, and the
-  market feed. Pricing math itself works offline.
-- The PDF library and brand fonts load from a CDN. If you ever need a fully
-  offline/self-contained version, those can be bundled into the repo instead.
+- Lane freight values are placeholders except Mumbai → LA/Long Beach ($4,000):
+  replace with your forwarder's real rates (via the team editor).
+- Lids ship from China at $0 tariff (shown as "included in pricing") — confirm
+  whether duties now apply.
+- Keep product IDs stable when editing (they link sets to lids).
+- The page needs internet for fonts, the PDF/Excel libraries, and publishing.

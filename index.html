@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   /* ============================================================
      NUTRAPACK PRICING TOOL — brand-matched skin
@@ -219,8 +220,6 @@
         <div class="result" id="result"></div>
       </div>
 
-      <div id="quick"></div>
-
       <div class="draft">
         <div class="draft-head">
           <span>Draft Quote</span>
@@ -259,50 +258,103 @@
     </div>
   </section>
 
+  <!-- ============ TEAM PRICING EDITOR (password-gated) ============ -->
+  <section class="panel" id="adminPanel" style="display:none">
+    <h2><span class="dot"></span>Team Pricing Editor <span class="sub">— publishes a new signed version for everyone</span></h2>
+    <div class="body">
+
+      <div id="authBox" style="display:none">
+        <div class="lane-grid">
+          <div class="fld"><label>Team password</label><input class="inp" id="pwInput" type="password" placeholder="••••••••••••"></div>
+          <div class="fld" style="align-self:end"><button class="btn" id="authGo">Unlock editing</button></div>
+        </div>
+        <div class="legend" id="authMsg" style="margin-top:10px"></div>
+      </div>
+
+      <div id="setupBox" style="display:none">
+        <p class="legend" style="margin-bottom:16px">One-time setup (admin only): connect the editor to this repo. The GitHub token is stored <b>encrypted with your team password</b> — never in plain text. Create a fine-grained token scoped to ONLY this repository with Contents read &amp; write.</p>
+        <div class="ship-grid">
+          <div class="fld"><label>GitHub owner (org or user)</label><input class="inp" id="suOwner" placeholder="yourcompany"></div>
+          <div class="fld"><label>Repository name</label><input class="inp" id="suRepo" placeholder="pricing-tool"></div>
+          <div class="fld"><label>Fine-grained token</label><input class="inp" id="suToken" type="password" placeholder="github_pat_…"></div>
+          <div class="fld"><label>Team password <span class="hint">long — 4+ words</span></label><input class="inp" id="suPw1" type="password"></div>
+          <div class="fld"><label>Confirm password</label><input class="inp" id="suPw2" type="password"></div>
+          <div class="fld" style="align-self:end"><button class="btn" id="suGo">Save setup</button></div>
+        </div>
+        <div class="legend" id="suMsg" style="margin-top:10px"></div>
+      </div>
+
+      <div id="editorBox" style="display:none">
+        <div class="lane-grid">
+          <div class="fld"><label>Version label</label><input class="inp" id="edLabel" placeholder="e.g. June freight + resin update"></div>
+          <div class="fld"><label>Signed / approved by <span class="hint">required</span></label><input class="inp" id="edSigner" placeholder="Your name"></div>
+        </div>
+        <div class="qkhead"><span>Products</span><span class="legend" style="text-transform:none;letter-spacing:0">edit any value — keep IDs stable</span></div>
+        <div class="scroll" id="edProducts"></div>
+        <div class="qkhead"><span>Freight matrix ($ / container)</span></div>
+        <div class="scroll" id="edFreight"></div>
+        <div class="qkhead"><span>Excel round-trip</span></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <button class="btn" id="edExcelDown">Download current as Excel</button>
+          <label class="btn" style="cursor:pointer;margin:0">Upload filled Excel<input type="file" id="edExcelUp" accept=".xlsx,.xls" style="display:none"></label>
+          <span class="legend">Edit numbers in Excel, upload, review on screen, then sign &amp; publish.</span>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap">
+          <button class="btn" id="edCancel">Cancel</button>
+          <button class="btn primary" id="edSave">Sign &amp; publish to team</button>
+        </div>
+        <div class="legend" id="edMsg" style="margin-top:10px"></div>
+      </div>
+
+    </div>
+  </section>
+
   <footer>
-    Permanent pricing changes: copy the latest entry in <code>VERSIONS</code> in <code>index.html</code>, edit values + date, append, commit. Old versions stay toggle-able above.
-    On-screen edits are temporary what-ifs. Freight matrix values are placeholders except Mumbai→LA/Long Beach — replace with your forwarder's real rates.
+    <div id="verStamp" style="color:var(--ink);letter-spacing:.06em"></div>
+    <div style="margin-top:12px"><button class="btn" id="editBtn">Edit for all members</button></div>
+    <div id="pubStatus" style="margin-top:10px;color:var(--good)"></div>
+    <div style="margin-top:14px">On-screen tweaks are private what-ifs. "Edit for all members" publishes new pricing to the whole team (password required) and records who signed it.</div>
   </footer>
 
 </div>
 
 <script>
 /* ============================================================
-   PRICING VERSIONS — the heart of version history.
-   TO UPDATE PRICING: copy the LAST entry in VERSIONS, change the
-   values, set a new date + label, and append it to the end. Commit.
-   Old entries stay in the list and remain selectable in the tool.
-   The LAST entry is always the current/default pricing.
+   PRICING DATA
+   Source of truth once deployed: versions.json in the repo,
+   published through the password-gated "Edit for all members"
+   flow below. FALLBACK is only a safety net if that file can't
+   be loaded (first deploy, offline preview).
    ============================================================ */
-const VERSIONS = [
-  {
-    date: '2026-06-04',
-    label: 'Initial pricing',
-    tubs: [
-      {id:'8oz', name:'8oz Tub', pcs:129600, ppp:6480, factory:0.227, tariff:0.014},
-      {id:'10oz',name:'10oz Tub',pcs:110160, ppp:5508, factory:0.252, tariff:0.016},
-      {id:'20oz',name:'20oz Tub',pcs:51840,  ppp:2592, factory:0.339, tariff:0.019},
-      {id:'25oz',name:'25oz Tub',pcs:40320,  ppp:2016, factory:0.470, tariff:0.025},
-      {id:'32oz',name:'32oz Tub',pcs:34560,  ppp:1728, factory:0.512, tariff:0.026},
-      {id:'55oz',name:'55oz Tub',pcs:22680,  ppp:1134, factory:0.595, tariff:0.046},
-    ],
-    lids: [
-      {id:'60mm', name:'60mm PP Lid (printed liner)', pcs:517440, ppp:null, factory:0.1635, tariff:0},
-      {id:'89mm', name:'89mm PP Lid (printed liner)', pcs:267300, ppp:null, factory:0.2029, tariff:0},
-      {id:'120mm',name:'120mm PP Lid (printed liner)',pcs:null,   ppp:null, factory:0.2625, tariff:0},
-    ],
-    sets: {'8oz':'60mm','10oz':'60mm','20oz':'89mm','25oz':'89mm','32oz':'89mm','55oz':'120mm'},
-    freight: {
-      india: {lalb:4000, sea:4200, hou:4500, sav:4700, nynj:4800},
-      china: {lalb:3200, sea:3300, hou:3700, sav:3900, nynj:4000},
-    },
+const FALLBACK = { versions: [ {
+  date:'2026-06-04', label:'Initial pricing', signer:'—',
+  tubs:[
+    {id:'8oz', name:'8oz Tub', pcs:129600, ppp:6480, factory:0.227, tariff:0.014},
+    {id:'10oz',name:'10oz Tub',pcs:110160, ppp:5508, factory:0.252, tariff:0.016},
+    {id:'20oz',name:'20oz Tub',pcs:51840,  ppp:2592, factory:0.339, tariff:0.019},
+    {id:'25oz',name:'25oz Tub',pcs:40320,  ppp:2016, factory:0.470, tariff:0.025},
+    {id:'32oz',name:'32oz Tub',pcs:34560,  ppp:1728, factory:0.512, tariff:0.026},
+    {id:'55oz',name:'55oz Tub',pcs:22680,  ppp:1134, factory:0.595, tariff:0.046},
+  ],
+  lids:[
+    {id:'60mm', name:'60mm PP Lid (printed liner)', pcs:517440, ppp:null, factory:0.1635, tariff:0},
+    {id:'89mm', name:'89mm PP Lid (printed liner)', pcs:267300, ppp:null, factory:0.2029, tariff:0},
+    {id:'120mm',name:'120mm PP Lid (printed liner)',pcs:null,   ppp:null, factory:0.2625, tariff:0},
+  ],
+  sets:{'8oz':'60mm','10oz':'60mm','20oz':'89mm','25oz':'89mm','32oz':'89mm','55oz':'120mm'},
+  freight:{
+    india:{lalb:4000, sea:4200, hou:4500, sav:4700, nynj:4800},
+    china:{lalb:3200, sea:3300, hou:3700, sav:3900, nynj:4000},
   },
-  /* TEMPLATE for the next update — copy the block above, paste it here,
-     change the numbers + date + label, and commit. */
-];
+} ] };
+let ALL = FALLBACK;
+let VI = ALL.versions.length-1;
+const cur = ()=>ALL.versions[VI];
 const MARGINS=[{lab:'50%',d:0.5},{lab:'40%',d:0.6},{lab:'30%',d:0.7}];
-let VI = VERSIONS.length-1;
-const cur = ()=>VERSIONS[VI];
+
+let CONFIG=null;   // {owner, repo, enc:{salt,iv,ct,iter}} from config.json
+let TOKEN=null;    // decrypted GitHub token, in memory only
+let DRAFT=null;    // working copy inside the editor
 
 const ORIGINS = [
   {id:'india', name:'India — Mumbai (Nhava Sheva)'},
@@ -328,12 +380,15 @@ let MARKET = SAMPLE_MARKET;
 let S;
 function resetState(){
   S = {origin:'', port:'', freight:0, portc:0, truck:0, ware:0, tariff:{}};
+  syncTariffOverrides();
+}
+function syncTariffOverrides(){
   [...cur().tubs,...cur().lids].forEach(i=>S.tariff[i.id]=i.tariff);
 }
-resetState();
+S = {origin:'', port:'', freight:0, portc:0, truck:0, ware:0, tariff:{}};
+syncTariffOverrides();
 let custom = {name:'', factory:0, tariff:0, pcs:0, ppp:0};
 let quote = { customer:'', lines:[] };
-let quick = {};
 
 const $=s=>document.querySelector(s);
 const money=(n,d=4)=>n==null||isNaN(n)?'—':'$'+n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -360,16 +415,39 @@ function customItem(){
           factory:custom.factory||0, tariff:custom.tariff||0};
 }
 
-/* ===== VERSION SELECTOR ===== */
+/* ===== VERSION SELECTOR + STAMP ===== */
 function buildVersionSel(){
   const v=$('#verSel');
-  v.innerHTML=VERSIONS.map((x,i)=>`<option value="${i}">${x.date} — ${x.label}${i===VERSIONS.length-1?' (current)':''}</option>`).join('');
+  v.innerHTML=ALL.versions.map((x,i)=>`<option value="${i}">${x.date} — ${x.label}${i===ALL.versions.length-1?' (current)':''}</option>`).join('');
   v.value=VI; updateVerNote();
 }
 function updateVerNote(){
-  $('#verNote').textContent = VI===VERSIONS.length-1
-    ? 'Current pricing in effect.'
-    : 'Viewing HISTORICAL pricing ('+cur().date+') — for reference and re-quotes. Switch back to the latest before quoting new business.';
+  const v=cur();
+  $('#verNote').textContent = VI===ALL.versions.length-1
+    ? `Current pricing in effect — v${ALL.versions.length}, approved by ${v.signer||'—'}.`
+    : `Viewing HISTORICAL pricing (${v.date}, signed by ${v.signer||'—'}) — for reference and re-quotes only. Switch back to the latest before quoting new business.`;
+}
+function updateStamp(){
+  const n=ALL.versions.length, v=ALL.versions[n-1];
+  $('#verStamp').textContent=`Pricing v${n} · ${v.date} · ${v.label} · approved by ${v.signer||'—'}`;
+}
+
+/* ===== LOADERS ===== */
+async function loadVersions(){
+  try{
+    const r=await fetch('versions.json',{cache:'no-store'});
+    if(!r.ok) throw 0;
+    const j=await r.json();
+    const vs=Array.isArray(j)?j:j.versions;
+    if(Array.isArray(vs)&&vs.length){
+      ALL={versions:vs}; VI=vs.length-1;
+      syncTariffOverrides();
+      buildVersionSel(); buildDropdown(); applyLane(); recomputeAll(); updateStamp();
+    }
+  }catch(e){ /* fallback pricing stays active */ }
+}
+async function loadConfig(){
+  try{ const r=await fetch('config.json',{cache:'no-store'}); if(r.ok) CONFIG=await r.json(); }catch(e){}
 }
 
 /* ===== LANE + MARKET ===== */
@@ -507,41 +585,6 @@ function renderQuote(){
   $('#qTotal').textContent=money2(quote.lines.reduce((a,l)=>a+l.total,0));
   wrap.querySelectorAll('.qx').forEach(b=>b.addEventListener('click',e=>removeLine(+e.currentTarget.dataset.i)));
 }
-
-/* ===== QUICK ADD — multiple sizes at once ===== */
-function quickRows(){
-  const rows=[];
-  cur().tubs.forEach(t=>rows.push({kind:'tub',item:t}));
-  cur().lids.forEach(l=>rows.push({kind:'lid',item:l}));
-  cur().tubs.forEach(t=>rows.push({kind:'set',item:t,label:t.name.replace('Tub','Set')+' + '+cur().sets[t.id]}));
-  return rows;
-}
-function multiplierFor(kind,item,mode){
-  if(mode==='units') return 1;
-  if(mode==='pallets') return kind==='lid' ? null : (item.ppp||null);
-  return item.pcs||null;
-}
-function renderQuick(){
-  const mode=$('#mode .on').dataset.m, mi=+$('#qmargin').value;
-  const modeLab=mode==='units'?'units':mode==='pallets'?'pallets':'containers';
-  const rows=quickRows().map(r=>{
-    const key=r.kind+':'+r.item.id;
-    const mult=multiplierFor(r.kind,r.item,mode);
-    const econ=r.kind==='set'?setEconomics(r.item):unitEconomics(r.item,r.kind);
-    const unit=econ.sells[mi];
-    const qty=quick[key]||'';
-    const tot=(mult&&qty)?money2(unit*qty*mult):'\u2014';
-    const dis=mult?'':'disabled';
-    return `<tr><td>${r.label||r.item.name}</td>
-      <td><input class="tarinp num qk-qty" style="width:88px" data-key="${key}" type="number" min="0" step="1" value="${qty}" ${dis} placeholder="${mult?'0':'\u2014'}"></td>
-      <td class="num">${money(unit,3)}</td><td class="num qk-tot" data-key="${key}">${tot}</td></tr>`;
-  }).join('');
-  $('#quick').innerHTML=`
-    <div class="qkhead"><span>Quick add \u2014 multiple sizes at once</span><span class="legend" style="text-transform:none;letter-spacing:0">qty in ${modeLab} \u00b7 priced at ${MARGINS[mi].lab} margin (set above)</span></div>
-    <div class="scroll"><table class="qk"><thead><tr><th>Item</th><th>Qty</th><th>Unit @ ${MARGINS[mi].lab}</th><th>Line total</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" id="qkAdd">+ Add entered lines to quote</button></div>`;
-}
-
 function buildPDF(){
   const J=(window.jspdf||{}).jsPDF;
   if(!J){ alert('PDF library is still loading — check your connection and try again.'); return; }
@@ -631,14 +674,198 @@ function renderTable(){
 }
 
 function refreshShipNote(){ $('#shipTotal').textContent=money2(containerCosts()); }
-function recomputeAll(){ refreshShipNote(); renderTable(); renderResult(); renderMarket(); renderQuick(); }
+function recomputeAll(){ refreshShipNote(); renderTable(); renderResult(); renderMarket(); }
+
+/* ===== CRYPTO (shared-password token vault) ===== */
+const te=new TextEncoder(), td=new TextDecoder();
+const b64=u8=>btoa(String.fromCharCode(...u8));
+const ub64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function deriveKey(pw,salt,iter){
+  const km=await crypto.subtle.importKey('raw',te.encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:iter,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function encryptToken(pw,token){
+  const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12)), iter=310000;
+  const key=await deriveKey(pw,salt,iter);
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,te.encode(token)));
+  return {salt:b64(salt), iv:b64(iv), ct:b64(ct), iter};
+}
+async function decryptToken(pw,enc){
+  const key=await deriveKey(pw,ub64(enc.salt),enc.iter||310000);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(enc.iv)},key,ub64(enc.ct));
+  return td.decode(pt);
+}
+
+/* ===== GITHUB API (commit back to this repo) ===== */
+const ghHeaders=()=>({'Authorization':'Bearer '+TOKEN,'Accept':'application/vnd.github+json'});
+function b64Unicode(str){ return btoa(unescape(encodeURIComponent(str))); }
+async function ghGetSha(path){
+  const r=await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${path}`,{headers:ghHeaders()});
+  if(r.status===404) return null;
+  if(!r.ok) throw new Error('GitHub read failed ('+r.status+') — check token & repo name');
+  return (await r.json()).sha;
+}
+async function ghPut(path,obj,message){
+  const sha=await ghGetSha(path);
+  const body={message, content:b64Unicode(JSON.stringify(obj,null,2))};
+  if(sha) body.sha=sha;
+  const r=await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${path}`,
+    {method:'PUT',headers:{...ghHeaders(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error('GitHub save failed ('+r.status+') '+(e.message||'')); }
+}
+
+/* ===== EXCEL ROUND-TRIP ===== */
+const numXl=v=>v===''||v==null?null:(parseInt(v)||null);
+const numXlR=v=>v===''||v==null?null:parseFloat(v);
+function parseWorkbook(wb){
+  const psheet=wb.Sheets['Products'], fsheet=wb.Sheets['Freight'];
+  if(!psheet||!fsheet) throw new Error('Workbook must contain "Products" and "Freight" sheets — use the downloaded template.');
+  const ps=XLSX.utils.sheet_to_json(psheet,{header:1}).filter(r=>r&&r.length);
+  const fs=XLSX.utils.sheet_to_json(fsheet,{header:1}).filter(r=>r&&r.length);
+  const tubs=[], lids=[];
+  ps.slice(1).forEach(r=>{
+    const [type,id,name,pcs,ppp,factory,tariff]=r;
+    if(!type||!id) return;
+    const it={id:String(id), name:String(name||id), pcs:numXl(pcs), ppp:numXl(ppp),
+              factory:numXlR(factory)||0, tariff:numXlR(tariff)||0};
+    (String(type).toLowerCase()==='lid'?lids:tubs).push(it);
+  });
+  if(!tubs.length) throw new Error('No tubs found in the Products sheet.');
+  const heads=fs[0].slice(1).map(String);
+  const freight={};
+  fs.slice(1).forEach(r=>{
+    const o=String(r[0]||''); if(!o) return;
+    freight[o]={};
+    heads.forEach((p,i)=>{ const v=numXlR(r[i+1]); if(v!=null&&!isNaN(v)) freight[o][p]=v; });
+  });
+  return {tubs,lids,freight};
+}
+function downloadTemplate(){
+  if(typeof XLSX==='undefined'){ edMsg('Excel library still loading — try again in a moment.'); return; }
+  readEditor();
+  const wb=XLSX.utils.book_new();
+  const prows=[['Type','ID','Name','PcsPerContainer','PcsPerPallet','FactoryCost','TariffPerUnit']];
+  DRAFT.tubs.forEach(t=>prows.push(['tub',t.id,t.name,t.pcs??'',t.ppp??'',t.factory,t.tariff]));
+  DRAFT.lids.forEach(l=>prows.push(['lid',l.id,l.name,l.pcs??'',l.ppp??'',l.factory,l.tariff]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(prows),'Products');
+  const fr=[['Origin',...PORTS.map(p=>p.id)]];
+  ORIGINS.forEach(o=>fr.push([o.id,...PORTS.map(p=>(DRAFT.freight[o.id]||{})[p.id]??'')]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(fr),'Freight');
+  XLSX.writeFile(wb,'nutrapack-pricing.xlsx');
+}
+
+/* ===== TEAM PRICING EDITOR ===== */
+function edMsg(t){ $('#edMsg').textContent=t; }
+function openAdmin(){
+  $('#adminPanel').style.display='block';
+  $('#authBox').style.display='none'; $('#setupBox').style.display='none'; $('#editorBox').style.display='none';
+  if(TOKEN && CONFIG){ openEditor(); }
+  else if(CONFIG){ $('#authBox').style.display='block'; $('#pwInput').focus(); }
+  else { $('#setupBox').style.display='block'; }
+  $('#adminPanel').scrollIntoView({behavior:'smooth'});
+}
+function closeAdmin(){
+  $('#adminPanel').style.display='none';
+  $('#pwInput').value=''; $('#authMsg').textContent=''; edMsg('');
+}
+async function tryUnlock(){
+  const pw=$('#pwInput').value;
+  if(!pw){ $('#authMsg').textContent='Enter the team password.'; return; }
+  $('#authMsg').textContent='Checking…';
+  try{
+    TOKEN=await decryptToken(pw,CONFIG.enc);
+    $('#authMsg').textContent='';
+    $('#authBox').style.display='none';
+    openEditor();
+  }catch(e){
+    TOKEN=null;
+    $('#authMsg').textContent='Wrong password.';
+  }
+}
+async function runSetup(){
+  const owner=$('#suOwner').value.trim(), repo=$('#suRepo').value.trim(), token=$('#suToken').value.trim();
+  const p1=$('#suPw1').value, p2=$('#suPw2').value;
+  const msg=t=>$('#suMsg').textContent=t;
+  if(!owner||!repo||!token){ msg('Owner, repo, and token are all required.'); return; }
+  if(p1.length<8){ msg('Password must be at least 8 characters — longer is much better.'); return; }
+  if(p1!==p2){ msg('Passwords do not match.'); return; }
+  msg('Encrypting & saving…');
+  try{
+    const enc=await encryptToken(p1,token);
+    CONFIG={owner,repo,enc}; TOKEN=token;
+    await ghPut('config.json',CONFIG,'Set up team pricing editor');
+    const haveVersions=await ghGetSha('versions.json');
+    if(!haveVersions) await ghPut('versions.json',ALL,'Initial pricing versions');
+    msg('');
+    $('#setupBox').style.display='none';
+    openEditor();
+  }catch(e){ CONFIG=null; TOKEN=null; msg(e.message); }
+}
+function openEditor(){
+  const latest=ALL.versions[ALL.versions.length-1];
+  DRAFT=JSON.parse(JSON.stringify({tubs:latest.tubs,lids:latest.lids,sets:latest.sets,freight:latest.freight}));
+  $('#edLabel').value=''; $('#edSigner').value=''; edMsg('');
+  renderEditor();
+  $('#editorBox').style.display='block';
+}
+function renderEditor(){
+  const prow=(it,kind)=>`<tr data-kind="${kind}" data-id="${it.id}">
+    <td><input class="inp ed" data-f="name" value="${it.name}"></td>
+    <td><input class="inp ed num" data-f="pcs" type="number" style="width:110px" value="${it.pcs??''}" placeholder="—"></td>
+    <td><input class="inp ed num" data-f="ppp" type="number" style="width:100px" value="${it.ppp??''}" placeholder="—"></td>
+    <td><input class="inp ed num" data-f="factory" type="number" step="0.0001" style="width:110px" value="${it.factory}"></td>
+    <td><input class="inp ed num" data-f="tariff" type="number" step="0.001" style="width:100px" value="${it.tariff}"></td></tr>`;
+  $('#edProducts').innerHTML=`<table><thead><tr><th style="text-align:left">Name</th><th>Pcs/Ctnr</th><th>Pcs/Pallet</th><th>Factory $</th><th>Tariff $</th></tr></thead><tbody>
+    <tr class="grouprow"><td colspan="5">Tubs</td></tr>${DRAFT.tubs.map(t=>prow(t,'tub')).join('')}
+    <tr class="grouprow"><td colspan="5">Lids</td></tr>${DRAFT.lids.map(l=>prow(l,'lid')).join('')}
+  </tbody></table>`;
+  $('#edFreight').innerHTML=`<table><thead><tr><th style="text-align:left">Origin</th>${PORTS.map(p=>`<th>${p.name.split(' / ')[0]}</th>`).join('')}</tr></thead><tbody>
+    ${ORIGINS.map(o=>`<tr><td style="text-align:left">${o.name.split(' — ')[0]}</td>${PORTS.map(p=>`<td><input class="inp edf num" data-o="${o.id}" data-p="${p.id}" type="number" step="50" style="width:90px" value="${(DRAFT.freight[o.id]||{})[p.id]??''}"></td>`).join('')}</tr>`).join('')}
+  </tbody></table>`;
+}
+function readEditor(){
+  document.querySelectorAll('#edProducts tr[data-kind]').forEach(tr=>{
+    const list=tr.dataset.kind==='lid'?DRAFT.lids:DRAFT.tubs;
+    const it=list.find(x=>x.id===tr.dataset.id); if(!it) return;
+    tr.querySelectorAll('input.ed').forEach(inp=>{
+      const f=inp.dataset.f, v=inp.value;
+      if(f==='name') it.name=v||it.name;
+      else if(f==='pcs'||f==='ppp') it[f]=v===''?null:(parseInt(v)||null);
+      else it[f]=parseFloat(v)||0;
+    });
+  });
+  document.querySelectorAll('#edFreight input.edf').forEach(inp=>{
+    const o=inp.dataset.o, p=inp.dataset.p, v=inp.value;
+    DRAFT.freight[o]=DRAFT.freight[o]||{};
+    if(v==='') delete DRAFT.freight[o][p]; else DRAFT.freight[o][p]=parseFloat(v)||0;
+  });
+}
+async function publish(){
+  readEditor();
+  const label=$('#edLabel').value.trim()||'Pricing update';
+  const signer=$('#edSigner').value.trim();
+  if(!signer){ edMsg('Sign-off name is required before publishing.'); return; }
+  const entry={date:new Date().toISOString().slice(0,10), label, signer,
+               tubs:DRAFT.tubs, lids:DRAFT.lids, sets:DRAFT.sets, freight:DRAFT.freight};
+  const next={versions:[...ALL.versions, entry]};
+  edMsg('Publishing to GitHub…');
+  try{
+    await ghPut('versions.json',next,`Pricing v${next.versions.length} — ${label} (signed: ${signer})`);
+    ALL=next; VI=ALL.versions.length-1;
+    syncTariffOverrides();
+    buildVersionSel(); buildDropdown(); applyLane(); recomputeAll(); updateStamp();
+    closeAdmin();
+    $('#pubStatus').textContent=`Published v${ALL.versions.length} — live for the whole team within ~1 minute (signed: ${signer}).`;
+    setTimeout(()=>{$('#pubStatus').textContent='';}, 20000);
+  }catch(e){ edMsg(e.message); }
+}
 
 /* ===== WIRING ===== */
 function readShip(){ S.freight=+$('#freight').value||0; S.portc=+$('#portc').value||0; S.truck=+$('#truck').value||0; S.ware=+$('#ware').value||0; }
 $('#verSel').addEventListener('change',()=>{
   VI=+$('#verSel').value;
-  [...cur().tubs,...cur().lids].forEach(i=>S.tariff[i.id]=i.tariff);
-  updateVerNote(); buildDropdown(); applyLane(); quick={}; recomputeAll();
+  syncTariffOverrides();
+  updateVerNote(); buildDropdown(); applyLane(); recomputeAll();
 });
 $('#origin').addEventListener('change',()=>{applyLane();recomputeAll();});
 $('#port').addEventListener('change',()=>{applyLane();recomputeAll();});
@@ -651,38 +878,16 @@ $('#prod').addEventListener('change',()=>{
   $('#'+id).addEventListener('input',e=>{ custom[key]=fn(e.target.value); renderResult(); });
 });
 $('#qty').addEventListener('input',renderResult);
-$('#qmargin').addEventListener('change',()=>{renderResult();renderQuick();});
+$('#qmargin').addEventListener('change',renderResult);
 $('#mode').addEventListener('click',e=>{
   if(e.target.tagName!=='BUTTON')return;
   $('#mode .on').classList.remove('on'); e.target.classList.add('on');
   const m=e.target.dataset.m;
   $('#qtyLabel').textContent = m==='units'?'Number of units':m==='pallets'?'Number of pallets':'Number of containers';
   $('#qty').value='';
-  renderResult(); renderQuick();
+  renderResult();
 });
 $('#addLine').addEventListener('click',addToQuote);
-$('#quick').addEventListener('input',e=>{
-  const t=e.target; if(!t.classList.contains('qk-qty'))return;
-  const key=t.dataset.key; quick[key]=parseFloat(t.value)||0;
-  const [kind,id]=key.split(':');
-  const item=kind==='set'?cur().tubs.find(x=>x.id===id):find(id);
-  const mode=$('#mode .on').dataset.m, mi=+$('#qmargin').value;
-  const mult=multiplierFor(kind,item,mode);
-  const econ=kind==='set'?setEconomics(item):unitEconomics(item,kind);
-  const cell=$('#quick').querySelector(`.qk-tot[data-key="${key}"]`);
-  if(cell) cell.textContent=(mult&&quick[key])?money2(econ.sells[mi]*quick[key]*mult):'\u2014';
-});
-$('#quick').addEventListener('click',e=>{
-  if(e.target.id!=='qkAdd')return;
-  const mode=$('#mode .on').dataset.m, mi=+$('#qmargin').value;
-  let added=0;
-  quickRows().forEach(r=>{
-    const key=r.kind+':'+r.item.id, qty=quick[key]||0;
-    if(qty>0){ const l=buildLine(r.kind,r.item,qty,mode,mi); if(l){ quote.lines.push(l); added++; } }
-  });
-  if(added){ quick={}; renderQuick(); renderQuote(); }
-});
-
 $('#qcust').addEventListener('input',()=>{quote.customer=$('#qcust').value;});
 $('#clearQuote').addEventListener('click',()=>{quote.lines=[];renderQuote();});
 $('#pdfBtn').addEventListener('click',buildPDF);
@@ -691,9 +896,28 @@ $('#reset').addEventListener('click',()=>{
   ['freight','portc','truck','ware','qty'].forEach(id=>$('#'+id).value='');
   buildLaneSelectors(); applyLane(); recomputeAll();
 });
+$('#editBtn').addEventListener('click',openAdmin);
+$('#authGo').addEventListener('click',tryUnlock);
+$('#pwInput').addEventListener('keydown',e=>{ if(e.key==='Enter') tryUnlock(); });
+$('#suGo').addEventListener('click',runSetup);
+$('#edExcelDown').addEventListener('click',downloadTemplate);
+$('#edExcelUp').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  if(typeof XLSX==='undefined'){ edMsg('Excel library still loading — try again in a moment.'); return; }
+  try{
+    const wb=XLSX.read(await f.arrayBuffer());
+    const parsed=parseWorkbook(wb);
+    DRAFT={...DRAFT, tubs:parsed.tubs, lids:parsed.lids, freight:parsed.freight};
+    renderEditor();
+    edMsg('Loaded from Excel — review the values above, then sign & publish.');
+  }catch(err){ edMsg(err.message); }
+  e.target.value='';
+});
+$('#edSave').addEventListener('click',publish);
+$('#edCancel').addEventListener('click',closeAdmin);
 
 /* init */
-buildVersionSel(); buildLaneSelectors(); buildDropdown(); applyLane(); recomputeAll(); renderQuote(); loadMarket();
+buildVersionSel(); buildLaneSelectors(); buildDropdown(); applyLane(); recomputeAll(); renderQuote(); updateStamp(); loadMarket(); loadVersions(); loadConfig();
 </script>
 </body>
 </html>
