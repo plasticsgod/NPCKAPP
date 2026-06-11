@@ -135,6 +135,10 @@
   .draft-foot .btn:hover{background:#fff;color:var(--ink);border-color:#fff}
   .draft-foot .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
   .draft-foot .btn.primary:hover{background:var(--accent);color:#fff;filter:brightness(1.08)}
+
+  .qkhead{margin-top:22px;padding:12px 0;border-top:1px solid var(--hairline);font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--ink)}
+  table.qk td,table.qk th{padding:7px 10px}
+  table.qk td:first-child{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -146,6 +150,16 @@
   </header>
 
   <!-- ============ LANE + MARKET REFERENCE ============ -->
+  <section class="panel">
+    <h2><span class="dot"></span>Pricing Version <span class="sub">— toggle back to earlier pricing by date</span></h2>
+    <div class="body">
+      <div class="lane-grid">
+        <div class="fld"><label>Active pricing</label><select class="inp" id="verSel"></select></div>
+        <div class="fld" style="align-self:end"><span class="legend" id="verNote"></span></div>
+      </div>
+    </div>
+  </section>
+
   <section class="panel">
     <h2><span class="dot"></span>Lane <span class="sub">— origin &amp; US destination port set the freight rate</span></h2>
     <div class="body">
@@ -167,10 +181,10 @@
     <h2><span class="dot"></span>Container &amp; Shipping Costs <span class="sub">— freight auto-fills from the lane; override any field</span></h2>
     <div class="body">
       <div class="ship-grid">
-        <div class="fld"><label>Container freight <span class="hint" id="freightLane">(lane rate)</span></label><div class="dollar-wrap"><input class="inp dollar num" id="freight" type="number" step="50" value="4000"></div></div>
-        <div class="fld"><label>Port charges <span class="hint">clearance + handling</span></label><div class="dollar-wrap"><input class="inp dollar num" id="portc" type="number" step="25" value="400"></div></div>
-        <div class="fld"><label>Trucking</label><div class="dollar-wrap"><input class="inp dollar num" id="truck" type="number" step="50" value="1500"></div></div>
-        <div class="fld"><label>Warehousing</label><div class="dollar-wrap"><input class="inp dollar num" id="ware" type="number" step="50" value="0"></div></div>
+        <div class="fld"><label>Container freight <span class="hint" id="freightLane">(lane rate)</span></label><div class="dollar-wrap"><input class="inp dollar num" id="freight" type="number" step="50" value="" placeholder="0"></div></div>
+        <div class="fld"><label>Port charges <span class="hint">clearance + handling</span></label><div class="dollar-wrap"><input class="inp dollar num" id="portc" type="number" step="25" value="" placeholder="0"></div></div>
+        <div class="fld"><label>Trucking</label><div class="dollar-wrap"><input class="inp dollar num" id="truck" type="number" step="50" value="" placeholder="0"></div></div>
+        <div class="fld"><label>Warehousing</label><div class="dollar-wrap"><input class="inp dollar num" id="ware" type="number" step="50" value="" placeholder="0"></div></div>
       </div>
       <div class="ship-note">
         Spread across pcs per container to give the <b>add-on per unit</b> on tubs. Total per container:
@@ -186,10 +200,17 @@
       <div class="quote">
         <div class="builder">
           <div class="fld"><label>Product</label><select class="inp" id="prod"></select></div>
-          <div class="fld"><label>Quantity entered as</label>
-            <div class="seg" id="mode"><button data-m="units" class="on">Units</button><button data-m="containers">Containers</button></div>
+          <div id="customFields" style="display:none">
+            <div class="fld"><label>Custom item name</label><input class="inp" id="custName" placeholder="e.g. 16oz Tub"></div>
+            <div class="fld"><label>Factory cost / unit</label><div class="dollar-wrap"><input class="inp dollar num" id="custFactory" type="number" step="0.001" value="" placeholder="0.000"></div></div>
+            <div class="fld"><label>Tariff / unit</label><div class="dollar-wrap"><input class="inp dollar num" id="custTariff" type="number" step="0.001" value="" placeholder="0.000"></div></div>
+            <div class="fld"><label>Pcs per container <span class="hint">optional — enables freight add-on + container mode</span></label><input class="inp num" id="custPcs" type="number" value="" placeholder="—"></div>
+            <div class="fld"><label>Pcs per pallet <span class="hint">optional — enables pallet mode</span></label><input class="inp num" id="custPpp" type="number" value="" placeholder="—"></div>
           </div>
-          <div class="fld"><label id="qtyLabel">Number of units</label><input class="inp num" id="qty" type="number" step="1" value="50000"></div>
+          <div class="fld"><label>Quantity entered as</label>
+            <div class="seg" id="mode"><button data-m="units" class="on">Units</button><button data-m="pallets">Pallets</button><button data-m="containers">Containers</button></div>
+          </div>
+          <div class="fld"><label id="qtyLabel">Number of units</label><input class="inp num" id="qty" type="number" step="1" value="" placeholder="0"></div>
           <div class="fld"><label>Quote at margin</label>
             <select class="inp" id="qmargin"><option value="0">50% margin</option><option value="1">40% margin</option><option value="2">30% margin</option></select>
           </div>
@@ -197,6 +218,8 @@
         </div>
         <div class="result" id="result"></div>
       </div>
+
+      <div id="quick"></div>
 
       <div class="draft">
         <div class="draft-head">
@@ -237,35 +260,50 @@
   </section>
 
   <footer>
-    Permanent changes: edit <code>index.html</code> / <code>freight.json</code> and commit in GitHub (history = audit trail).
+    Permanent pricing changes: copy the latest entry in <code>VERSIONS</code> in <code>index.html</code>, edit values + date, append, commit. Old versions stay toggle-able above.
     On-screen edits are temporary what-ifs. Freight matrix values are placeholders except Mumbai→LA/Long Beach — replace with your forwarder's real rates.
   </footer>
 
 </div>
 
 <script>
-/* ===== SAVED DATA (edit + commit to update permanently) ===== */
-const DATA = {
-  tubs: [
-    {id:'8oz', name:'8oz Tub', pcs:129600, factory:0.227, tariff:0.014, lvlup:0.40},
-    {id:'10oz',name:'10oz Tub',pcs:110160, factory:0.252, tariff:0.016, lvlup:0.47},
-    {id:'20oz',name:'20oz Tub',pcs:51840,  factory:0.339, tariff:0.019, lvlup:0.50},
-    {id:'25oz',name:'25oz Tub',pcs:40320,  factory:0.470, tariff:0.025, lvlup:0.633},
-    {id:'32oz',name:'32oz Tub',pcs:34560,  factory:0.512, tariff:0.026, lvlup:null},
-    {id:'55oz',name:'55oz Tub',pcs:22680,  factory:0.595, tariff:0.046, lvlup:0.70},
-  ],
-  lids: [
-    {id:'60mm', name:'60mm PP Lid (printed liner)', pcs:517440, factory:0.1635, tariff:0, lvlup:0.47},
-    {id:'89mm', name:'89mm PP Lid (printed liner)', pcs:267300, factory:0.2029, tariff:0, lvlup:0.54},
-    {id:'120mm',name:'120mm PP Lid (printed liner)',pcs:null,   factory:0.2625, tariff:0, lvlup:0.56},
-  ],
-  sets: {'8oz':'60mm','10oz':'60mm','20oz':'89mm','25oz':'89mm','32oz':'89mm','55oz':'120mm'},
-  margins: [{lab:'50%',d:0.5},{lab:'40%',d:0.6},{lab:'30%',d:0.7}]
-};
+/* ============================================================
+   PRICING VERSIONS — the heart of version history.
+   TO UPDATE PRICING: copy the LAST entry in VERSIONS, change the
+   values, set a new date + label, and append it to the end. Commit.
+   Old entries stay in the list and remain selectable in the tool.
+   The LAST entry is always the current/default pricing.
+   ============================================================ */
+const VERSIONS = [
+  {
+    date: '2026-06-04',
+    label: 'Initial pricing',
+    tubs: [
+      {id:'8oz', name:'8oz Tub', pcs:129600, ppp:6480, factory:0.227, tariff:0.014},
+      {id:'10oz',name:'10oz Tub',pcs:110160, ppp:5508, factory:0.252, tariff:0.016},
+      {id:'20oz',name:'20oz Tub',pcs:51840,  ppp:2592, factory:0.339, tariff:0.019},
+      {id:'25oz',name:'25oz Tub',pcs:40320,  ppp:2016, factory:0.470, tariff:0.025},
+      {id:'32oz',name:'32oz Tub',pcs:34560,  ppp:1728, factory:0.512, tariff:0.026},
+      {id:'55oz',name:'55oz Tub',pcs:22680,  ppp:1134, factory:0.595, tariff:0.046},
+    ],
+    lids: [
+      {id:'60mm', name:'60mm PP Lid (printed liner)', pcs:517440, ppp:null, factory:0.1635, tariff:0},
+      {id:'89mm', name:'89mm PP Lid (printed liner)', pcs:267300, ppp:null, factory:0.2029, tariff:0},
+      {id:'120mm',name:'120mm PP Lid (printed liner)',pcs:null,   ppp:null, factory:0.2625, tariff:0},
+    ],
+    sets: {'8oz':'60mm','10oz':'60mm','20oz':'89mm','25oz':'89mm','32oz':'89mm','55oz':'120mm'},
+    freight: {
+      india: {lalb:4000, sea:4200, hou:4500, sav:4700, nynj:4800},
+      china: {lalb:3200, sea:3300, hou:3700, sav:3900, nynj:4000},
+    },
+  },
+  /* TEMPLATE for the next update — copy the block above, paste it here,
+     change the numbers + date + label, and commit. */
+];
+const MARGINS=[{lab:'50%',d:0.5},{lab:'40%',d:0.6},{lab:'30%',d:0.7}];
+let VI = VERSIONS.length-1;
+const cur = ()=>VERSIONS[VI];
 
-/* ===== LANES =====
-   Ocean freight $ per container by origin x US port.
-   PLACEHOLDERS except india/lalb (=$4000, your known rate). Replace with real forwarder rates. */
 const ORIGINS = [
   {id:'india', name:'India — Mumbai (Nhava Sheva)'},
   {id:'china', name:'China — Ningbo / Shanghai'},
@@ -277,32 +315,25 @@ const PORTS = [
   {id:'sav',  name:'Savannah',                 coast:'USEC'},
   {id:'nynj', name:'New York / New Jersey',    coast:'USEC'},
 ];
-const FREIGHT_MATRIX = {
-  india: {lalb:4000, sea:4200, hou:4500, sav:4700, nynj:4800},
-  china: {lalb:3200, sea:3300, hou:3700, sav:3900, nynj:4000},
-};
-// map a lane to its FBX index code (only China lanes have a direct FBX lane)
 function fbxLane(originId, coast){
   if(originId==='china' && coast==='USWC') return {code:'FBX01', name:'China/E.Asia → US West Coast'};
-  if(originId==='china' && (coast==='USEC')) return {code:'FBX03', name:'China/E.Asia → US East Coast'};
+  if(originId==='china' && coast==='USEC') return {code:'FBX03', name:'China/E.Asia → US East Coast'};
   if(originId==='china' && coast==='GULF') return {code:'FBX03', name:'China → US East Coast (proxy for Gulf)'};
-  return null; // India has no headline FBX lane
+  return null;
 }
-
-/* ===== MARKET DATA =====
-   Live values come from freight.json (written daily by the GitHub Action).
-   This embedded object is the labelled fallback if that file isn't present yet. */
 const SAMPLE_MARKET = { updated:'sample — not live', lanes:{ FBX01:2400, FBX03:3850 } };
 let MARKET = SAMPLE_MARKET;
 
-/* ===== STATE ===== */
-let S = {};
+/* ===== STATE (temporary, on-screen only) ===== */
+let S;
 function resetState(){
-  S = {origin:'india', port:'lalb', freight:4000, portc:400, truck:1500, ware:0, tariff:{}};
-  [...DATA.tubs,...DATA.lids].forEach(i=>S.tariff[i.id]=i.tariff);
+  S = {origin:'', port:'', freight:0, portc:0, truck:0, ware:0, tariff:{}};
+  [...cur().tubs,...cur().lids].forEach(i=>S.tariff[i.id]=i.tariff);
 }
 resetState();
+let custom = {name:'', factory:0, tariff:0, pcs:0, ppp:0};
 let quote = { customer:'', lines:[] };
+let quick = {};
 
 const $=s=>document.querySelector(s);
 const money=(n,d=4)=>n==null||isNaN(n)?'—':'$'+n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -310,43 +341,68 @@ const money2=n=>n==null||isNaN(n)?'—':'$'+n.toLocaleString('en-US',{minimumFra
 const money0=n=>n==null||isNaN(n)?'—':'$'+Math.round(n).toLocaleString('en-US');
 const containerCosts=()=>S.freight+S.portc+S.truck+S.ware;
 const tariffOf=id=>S.tariff[id]??0;
-const find=id=>[...DATA.tubs,...DATA.lids].find(x=>x.id===id);
-const addOn=(item,kind)=>kind==='tub'?containerCosts()/item.pcs:0;
+const find=id=>[...cur().tubs,...cur().lids].find(x=>x.id===id);
 
+/* ===== ECONOMICS ===== */
 function unitEconomics(item,kind){
-  const ad=addOn(item,kind), landed=item.factory+ad+tariffOf(item.id);
-  return {addOn:ad,landed,sells:DATA.margins.map(m=>landed/m.d)};
+  const ad = (kind==='tub' || (kind==='custom'&&item.pcs)) ? containerCosts()/item.pcs : 0;
+  const t  = kind==='custom' ? item.tariff : tariffOf(item.id);
+  const landed=item.factory+ad+t;
+  return {addOn:ad, tariff:t, landed, sells:MARGINS.map(m=>landed/m.d)};
 }
 function setEconomics(tub){
-  const lid=find(DATA.sets[tub.id]);
+  const lid=find(cur().sets[tub.id]);
   const t=unitEconomics(tub,'tub'), l=unitEconomics(lid,'lid'), landed=t.landed+l.landed;
-  return {lid,landed,sells:DATA.margins.map(m=>landed/m.d)};
+  return {lid, landed, sells:MARGINS.map(m=>landed/m.d)};
+}
+function customItem(){
+  return {id:'custom', name:custom.name||'Custom item', pcs:custom.pcs||null, ppp:custom.ppp||null,
+          factory:custom.factory||0, tariff:custom.tariff||0};
+}
+
+/* ===== VERSION SELECTOR ===== */
+function buildVersionSel(){
+  const v=$('#verSel');
+  v.innerHTML=VERSIONS.map((x,i)=>`<option value="${i}">${x.date} — ${x.label}${i===VERSIONS.length-1?' (current)':''}</option>`).join('');
+  v.value=VI; updateVerNote();
+}
+function updateVerNote(){
+  $('#verNote').textContent = VI===VERSIONS.length-1
+    ? 'Current pricing in effect.'
+    : 'Viewing HISTORICAL pricing ('+cur().date+') — for reference and re-quotes. Switch back to the latest before quoting new business.';
 }
 
 /* ===== LANE + MARKET ===== */
 function buildLaneSelectors(){
-  const o=$('#origin'); o.innerHTML=ORIGINS.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
-  const p=$('#port');   p.innerHTML=PORTS.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
-  o.value=S.origin; p.value=S.port;
+  $('#origin').innerHTML='<option value="">Select origin…</option>'+ORIGINS.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+  $('#port').innerHTML='<option value="">Select US port…</option>'+PORTS.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+  $('#origin').value=S.origin; $('#port').value=S.port;
 }
 function applyLane(){
   S.origin=$('#origin').value; S.port=$('#port').value;
-  const rate=FREIGHT_MATRIX[S.origin][S.port];
-  S.freight=rate; $('#freight').value=rate;
-  const port=PORTS.find(p=>p.id===S.port);
-  $('#freightLane').textContent=`(${ORIGINS.find(o=>o.id===S.origin).name.split(' — ')[0]} → ${port.name})`;
+  if(S.origin && S.port){
+    const rate=(cur().freight[S.origin]||{})[S.port];
+    if(rate!=null){ S.freight=rate; $('#freight').value=rate; }
+    $('#freightLane').textContent=`(${ORIGINS.find(o=>o.id===S.origin).name.split(' — ')[0]} → ${PORTS.find(p=>p.id===S.port).name})`;
+  } else {
+    $('#freightLane').textContent='(select a lane to auto-fill)';
+  }
   renderMarket();
 }
 function renderMarket(){
-  const port=PORTS.find(p=>p.id===S.port);
-  const lane=fbxLane(S.origin, port.coast);
   const tag=$('#mktTag'), body=$('#mktBody'), foot=$('#mktFoot');
   const live = MARKET.updated && !String(MARKET.updated).startsWith('sample');
   tag.textContent = live ? 'live' : 'sample';
   tag.style.color = live ? '#5fd39a' : '#ff5b1f';
-
+  if(!S.origin || !S.port){
+    body.innerHTML='<span class="lab">Select an origin and US port to see the market reference for that lane.</span>';
+    foot.textContent='Ocean leg only — excludes duties, port, terminal & inland. Benchmark, not your contracted rate.';
+    return;
+  }
+  const port=PORTS.find(p=>p.id===S.port);
+  const lane=fbxLane(S.origin, port.coast);
   if(!lane){
-    body.innerHTML=`<span class="lab">No headline FBX index for India lanes. The market reference covers China → US only; use it as a directional proxy at best for Mumbai.</span>`;
+    body.innerHTML='<span class="lab">No headline FBX index for India lanes. The market reference covers China → US only; use it as a directional proxy at best for Mumbai.</span>';
     foot.textContent='Ocean leg only — excludes duties, port, terminal & inland.';
     return;
   }
@@ -369,83 +425,78 @@ function loadMarket(){
 
 /* ===== QUOTE BUILDER ===== */
 function buildDropdown(){
-  const sel=$('#prod'); sel.innerHTML='';
+  const sel=$('#prod'); sel.innerHTML='<option value="">Select product…</option>';
   const mk=(label,items,kind)=>{const og=document.createElement('optgroup');og.label=label;items.forEach(i=>{const o=document.createElement('option');o.value=kind+':'+i.id;o.textContent=i.name;og.appendChild(o);});sel.appendChild(og);};
-  mk('Tubs (India)',DATA.tubs,'tub');
-  mk('Lids (China)',DATA.lids,'lid');
-  mk('Sets (Tub + Lid)',DATA.tubs.map(t=>({id:t.id,name:t.name.replace('Tub','Set')+' + '+DATA.sets[t.id]+' lid'})),'set');
+  mk('Tubs (India)',cur().tubs,'tub');
+  mk('Lids (China)',cur().lids,'lid');
+  mk('Sets (Tub + Lid)',cur().tubs.map(t=>({id:t.id,name:t.name.replace('Tub','Set')+' + '+cur().sets[t.id]+' lid'})),'set');
+  mk('Other',[{id:'item',name:'Custom / other size…'}],'custom');
+}
+function resolveProduct(){
+  const v=$('#prod').value; if(!v) return null;
+  const [kind,id]=v.split(':');
+  if(kind==='custom') return {kind,item:customItem()};
+  if(kind==='set'){ const t=cur().tubs.find(x=>x.id===id); return {kind,item:t}; }
+  return {kind,item:find(id)};
+}
+function unitsFromQty(kind,item,mode,qty){
+  if(mode==='units') return qty;
+  if(mode==='pallets'){
+    const ppp = kind==='lid' ? null : item.ppp;
+    return ppp ? qty*ppp : null;
+  }
+  const pcs = item.pcs;
+  return pcs ? qty*pcs : null;
 }
 function renderResult(){
-  const [kind,id]=$('#prod').value.split(':');
-  const mode=$('#mode .on').dataset.m;
-  let qty=parseFloat($('#qty').value)||0;
   const R=$('#result');
-  let item,econ,pcs,name;
-  if(kind==='set'){item=DATA.tubs.find(t=>t.id===id);econ=setEconomics(item);pcs=item.pcs;name=item.name.replace('Tub','Set');}
-  else{item=find(id);econ=unitEconomics(item,kind);pcs=item.pcs;name=item.name;}
-  let units=qty;
-  if(mode==='containers'){ if(!pcs){R.innerHTML='<div class="breakdown" style="padding:20px">No pcs-per-container on file for this item. Switch to “Units”.</div>';return;} units=qty*pcs; }
-  const m=DATA.margins, s=econ.sells, mi=+$('#qmargin').value;
-  const adRow=kind==='set'?`<div class="row"><span>Tub add-on / unit</span><span class="num">${money(addOn(item,'tub'))}</span></div>`:`<div class="row"><span>Add-on / unit</span><span class="num">${money(econ.addOn)}</span></div>`;
+  const rp=resolveProduct();
+  if(!rp){ R.innerHTML='<div class="breakdown" style="padding:22px"><span style="color:#a6a29a">Select a product to begin a quote.</span></div>'; return; }
+  const {kind,item}=rp;
+  const mode=$('#mode .on').dataset.m;
+  const qty=parseFloat($('#qty').value)||0;
+  let econ,pcs,ppp,name;
+  if(kind==='set'){ econ=setEconomics(item); pcs=item.pcs; ppp=item.ppp; name=item.name.replace('Tub','Set'); }
+  else { econ=unitEconomics(item,kind); pcs=item.pcs; ppp=item.ppp; name=item.name; }
+  const units=unitsFromQty(kind,item,mode,qty);
+  if(units===null){
+    const what=mode==='pallets'?'pallet count':'pcs-per-container';
+    R.innerHTML=`<div class="breakdown" style="padding:22px">No ${what} on file for this item. Switch to “Units”${kind==='custom'?' or fill the optional fields':''}.</div>`;
+    return;
+  }
+  const mi=+$('#qmargin').value, s=econ.sells;
+  const sfx=mode==='pallets'?` · ${qty} plt`:mode==='containers'?` · ${qty} ctnr`:'';
+  const adRow=kind==='set'?`<div class="row"><span>Tub add-on / unit</span><span class="num">${money(unitEconomics(item,'tub').addOn)}</span></div>`:`<div class="row"><span>Add-on / unit</span><span class="num">${money(econ.addOn)}</span></div>`;
   const factoryRow=kind==='set'?`<div class="row"><span>Tub + lid factory</span><span class="num">${money(item.factory+econ.lid.factory)}</span></div>`:`<div class="row"><span>Factory cost</span><span class="num">${money(item.factory)}</span></div>`;
-  const tariffRow=kind==='set'?`<div class="row"><span>Tariff (tub + lid)</span><span class="num">${money(tariffOf(item.id)+tariffOf(econ.lid.id))}</span></div>`:kind==='lid'?`<div class="row"><span>Duty / tariff</span><span class="num" style="font-style:italic">included in pricing</span></div>`:`<div class="row"><span>Tariff / unit</span><span class="num">${money(tariffOf(item.id))}</span></div>`;
+  const tariffRow=kind==='set'?`<div class="row"><span>Tariff (tub + lid)</span><span class="num">${money(tariffOf(item.id)+tariffOf(econ.lid.id))}</span></div>`:kind==='lid'?`<div class="row"><span>Duty / tariff</span><span class="num" style="font-style:italic">included in pricing</span></div>`:`<div class="row"><span>Tariff / unit</span><span class="num">${money(econ.tariff)}</span></div>`;
   R.innerHTML=`
-    <div class="rhead"><span class="nm">${name}</span><span class="qt">${units.toLocaleString()} units${mode==='containers'?` · ${qty} ctnr`:''}</span></div>
+    <div class="rhead"><span class="nm">${name}</span><span class="qt">${units.toLocaleString()} units${sfx}</span></div>
     <div class="breakdown">${factoryRow}${adRow}${tariffRow}<div class="row landed"><span>Landed cost / unit</span><span class="num">${money(econ.landed)}</span></div></div>
-    <div class="margins">${m.map((mg,i)=>`<div class="mcell ${i===mi?'hero':''}"><div class="lab">${mg.lab} margin</div><div class="big num">${money(s[i],3)}</div></div>`).join('')}</div>
+    <div class="margins">${MARGINS.map((mg,i)=>`<div class="mcell ${i===mi?'hero':''}"><div class="lab">${mg.lab} margin</div><div class="big num">${money(s[i],3)}</div></div>`).join('')}</div>
     <div class="totals">
-      ${m.map((mg,i)=>`<div class="row">${i===mi?`<b>Line total @ ${mg.lab}</b>`:`<span>Line total @ ${mg.lab}</span>`}<span class="num">${money2(s[i]*units)}</span></div>`).join('')}
-      ${pcs&&kind!=='set'?`<div class="row" style="border-top:1px dashed #444;margin-top:5px;padding-top:8px"><b>Full container @ ${m[mi].lab}</b><span class="num">${money2(s[mi]*pcs)}</span></div>`:''}
+      ${MARGINS.map((mg,i)=>`<div class="row">${i===mi?`<b>Line total @ ${mg.lab}</b>`:`<span>Line total @ ${mg.lab}</span>`}<span class="num">${money2(s[i]*units)}</span></div>`).join('')}
+      ${pcs&&kind!=='set'?`<div class="row" style="border-top:1px dashed #444;margin-top:5px;padding-top:8px"><b>Full container @ ${MARGINS[mi].lab}</b><span class="num">${money2(s[mi]*pcs)}</span></div>`:''}
     </div>`;
 }
 
-/* ===== PRICE LIST ===== */
-function renderTable(){
-  const tb=$('#rows'); tb.innerHTML='';
-  const group=l=>{const tr=document.createElement('tr');tr.className='grouprow';tr.innerHTML=`<td colspan="10">${l}</td>`;tb.appendChild(tr);};
-  const rowFor=(item,kind)=>{
-    const e=unitEconomics(item,kind), full=item.pcs?e.sells[0]*item.pcs:null;
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${item.name}</td><td class="num">${item.pcs?item.pcs.toLocaleString():'—'}</td>
-      <td class="num">${money(item.factory)}</td><td class="num">${money(e.addOn)}</td>
-      <td>${kind==='lid'?`<span style="color:var(--ink-3);font-style:italic" title="included in pricing">included</span>`:`<input class="tarinp num" data-id="${item.id}" type="number" step="0.001" value="${tariffOf(item.id)}">`}</td>
-      <td class="num">${money(e.landed)}</td><td class="num hero-col">${money(e.sells[0],3)}</td>
-      <td class="num">${money(e.sells[1],3)}</td><td class="num">${money(e.sells[2],3)}</td><td class="num">${money2(full)}</td>`;
-    tb.appendChild(tr);
-  };
-  group('Tubs — India'); DATA.tubs.forEach(i=>rowFor(i,'tub'));
-  group('Lids — China'); DATA.lids.forEach(i=>rowFor(i,'lid'));
-  group('Sets — Tub + Lid');
-  DATA.tubs.forEach(t=>{
-    const e=setEconomics(t), tr=document.createElement('tr');
-    tr.innerHTML=`<td>${t.name.replace('Tub','Set')} <span style="color:var(--ink-soft)">+ ${DATA.sets[t.id]}</span></td>
-      <td class="num">—</td><td class="num">${money(t.factory+e.lid.factory)}</td><td class="num">${money(addOn(t,'tub'))}</td>
-      <td class="num" style="color:var(--ink-soft)">${money(tariffOf(t.id)+tariffOf(e.lid.id))}</td>
-      <td class="num">${money(e.landed)}</td><td class="num hero-col">${money(e.sells[0],3)}</td>
-      <td class="num">${money(e.sells[1],3)}</td><td class="num">${money(e.sells[2],3)}</td><td class="num">—</td>`;
-    tb.appendChild(tr);
-  });
-  tb.querySelectorAll('.tarinp').forEach(inp=>inp.addEventListener('input',e=>{S.tariff[e.target.dataset.id]=parseFloat(e.target.value)||0;renderResult();}));
-}
-
-function refreshShipNote(){ $('#shipTotal').textContent=money2(containerCosts()); }
-function recomputeAll(){ refreshShipNote(); renderTable(); renderResult(); renderMarket(); }
-
 /* ===== DRAFT QUOTE BASKET ===== */
-function currentLine(){
-  const [kind,id]=$('#prod').value.split(':');
-  const mode=$('#mode .on').dataset.m;
-  let qty=parseFloat($('#qty').value)||0;
-  let item,econ,pcs,name;
-  if(kind==='set'){item=DATA.tubs.find(t=>t.id===id);econ=setEconomics(item);pcs=item.pcs;name=item.name.replace('Tub','Set');}
-  else{item=find(id);econ=unitEconomics(item,kind);pcs=item.pcs;name=item.name;}
-  let units=qty; if(mode==='containers'){ if(!pcs) return null; units=qty*pcs; }
-  const mi=+$('#qmargin').value, unit=econ.sells[mi];
-  const freightU = kind==='set' ? addOn(item,'tub') : econ.addOn;
-  const dutyU = kind==='set' ? (tariffOf(item.id)+tariffOf(econ.lid.id)) : tariffOf(item.id);
-  return {name,units,unit,total:unit*units,marginLab:DATA.margins[mi].lab,freightU,dutyU,dutyIncluded:kind==='lid'};
+function buildLine(kind,item,qty,mode,mi){
+  let econ,name;
+  if(kind==='set'){ econ=setEconomics(item); name=item.name.replace('Tub','Set'); }
+  else { econ=unitEconomics(item,kind); name=item.name; }
+  const units=unitsFromQty(kind,item,mode,qty);
+  if(units===null||units<=0) return null;
+  const unit=econ.sells[mi];
+  const freightU = kind==='set' ? unitEconomics(item,'tub').addOn : econ.addOn;
+  const dutyU = kind==='set' ? (tariffOf(item.id)+tariffOf(econ.lid.id)) : econ.tariff;
+  return {name,units,unit,total:unit*units,marginLab:MARGINS[mi].lab,freightU,dutyU,dutyIncluded:kind==='lid'};
 }
-function addToQuote(){ const l=currentLine(); if(!l||!l.units) return; quote.lines.push(l); renderQuote(); }
+function currentLine(){
+  const rp=resolveProduct(); if(!rp) return null;
+  const mode=$('#mode .on').dataset.m, qty=parseFloat($('#qty').value)||0, mi=+$('#qmargin').value;
+  return buildLine(rp.kind,rp.item,qty,mode,mi);
+}
+function addToQuote(){ const l=currentLine(); if(!l) return; quote.lines.push(l); renderQuote(); }
 function removeLine(i){ quote.lines.splice(i,1); renderQuote(); }
 function renderQuote(){
   quote.customer=$('#qcust').value;
@@ -456,6 +507,41 @@ function renderQuote(){
   $('#qTotal').textContent=money2(quote.lines.reduce((a,l)=>a+l.total,0));
   wrap.querySelectorAll('.qx').forEach(b=>b.addEventListener('click',e=>removeLine(+e.currentTarget.dataset.i)));
 }
+
+/* ===== QUICK ADD — multiple sizes at once ===== */
+function quickRows(){
+  const rows=[];
+  cur().tubs.forEach(t=>rows.push({kind:'tub',item:t}));
+  cur().lids.forEach(l=>rows.push({kind:'lid',item:l}));
+  cur().tubs.forEach(t=>rows.push({kind:'set',item:t,label:t.name.replace('Tub','Set')+' + '+cur().sets[t.id]}));
+  return rows;
+}
+function multiplierFor(kind,item,mode){
+  if(mode==='units') return 1;
+  if(mode==='pallets') return kind==='lid' ? null : (item.ppp||null);
+  return item.pcs||null;
+}
+function renderQuick(){
+  const mode=$('#mode .on').dataset.m, mi=+$('#qmargin').value;
+  const modeLab=mode==='units'?'units':mode==='pallets'?'pallets':'containers';
+  const rows=quickRows().map(r=>{
+    const key=r.kind+':'+r.item.id;
+    const mult=multiplierFor(r.kind,r.item,mode);
+    const econ=r.kind==='set'?setEconomics(r.item):unitEconomics(r.item,r.kind);
+    const unit=econ.sells[mi];
+    const qty=quick[key]||'';
+    const tot=(mult&&qty)?money2(unit*qty*mult):'\u2014';
+    const dis=mult?'':'disabled';
+    return `<tr><td>${r.label||r.item.name}</td>
+      <td><input class="tarinp num qk-qty" style="width:88px" data-key="${key}" type="number" min="0" step="1" value="${qty}" ${dis} placeholder="${mult?'0':'\u2014'}"></td>
+      <td class="num">${money(unit,3)}</td><td class="num qk-tot" data-key="${key}">${tot}</td></tr>`;
+  }).join('');
+  $('#quick').innerHTML=`
+    <div class="qkhead"><span>Quick add \u2014 multiple sizes at once</span><span class="legend" style="text-transform:none;letter-spacing:0">qty in ${modeLab} \u00b7 priced at ${MARGINS[mi].lab} margin (set above)</span></div>
+    <div class="scroll"><table class="qk"><thead><tr><th>Item</th><th>Qty</th><th>Unit @ ${MARGINS[mi].lab}</th><th>Line total</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" id="qkAdd">+ Add entered lines to quote</button></div>`;
+}
+
 function buildPDF(){
   const J=(window.jspdf||{}).jsPDF;
   if(!J){ alert('PDF library is still loading — check your connection and try again.'); return; }
@@ -463,19 +549,15 @@ function buildPDF(){
   const W=doc.internal.pageSize.getWidth(), M=50;
   const navy=[17,17,17], ink=[17,17,17], soft=[106,106,106], signal=[255,91,31], line=[212,207,198];
   const usd=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  // header band
   doc.setFillColor(...navy); doc.rect(0,0,W,72,'F');
   doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(22); doc.text('NUTRAPACK',M,42);
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(166,162,154); doc.text('Tub & Lid Pricing',M,57);
   doc.setFillColor(...signal); doc.rect(W-M-120,23,120,28,'F'); doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('DRAFT QUOTE',W-M-108,41);
   let y=104;
-  // meta
   const today=new Date(), ds=today.toISOString().slice(0,10);
   const meta=(lx,lab,val,vx)=>{doc.setTextColor(...soft);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(lab,lx,y);doc.setTextColor(...ink);doc.setFont('helvetica','bold');doc.text(String(val),vx,y);};
   meta(M,'Prepared for:',quote.customer||'—',M+78); meta(W-M-185,'Date:',ds,W-M-135); y+=26;
-  // column anchors
   const cUnit=W-M-150, cTot=W-M-8;
-  // section label
   doc.setFillColor(...navy); doc.rect(M,y-13,W-2*M,22,'F');
   doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
   doc.text('LINE ITEMS',M+8,y+2); doc.text('PER UNIT',cUnit,y+2,{align:'right'}); doc.text('AMOUNT',cTot,y+2,{align:'right'});
@@ -504,7 +586,6 @@ function buildPDF(){
     compRow('Line total',l.unit,l.unit*l.units,true);
     y+=12;
   });
-  // summary totals
   if(y>650){ doc.addPage(); y=60; }
   doc.setDrawColor(...ink); doc.setLineWidth(1); doc.line(M,y,W-M,y); doc.setLineWidth(0.2); y+=20;
   const sline=(lab,amt)=>{ doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(...soft); doc.text(lab,cUnit,y,{align:'right'}); doc.setTextColor(...ink); doc.text(usd(amt),cTot,y,{align:'right'}); y+=17; };
@@ -513,7 +594,6 @@ function buildPDF(){
   y+=4; doc.setDrawColor(...line); doc.line(cUnit-130,y-2,cTot,y-2); y+=18;
   doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...ink); doc.text('TOTAL',cUnit,y,{align:'right'}); doc.setTextColor(...signal); doc.text(usd(sumP+sumF+sumD),cTot,y,{align:'right'});
   y+=34;
-  // disclaimer + footer
   doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(...soft);
   const disc='DRAFT — indicative pricing for discussion only. Not a purchase order, invoice, or binding offer. Prices are subject to confirmation of freight rates and applicable duties/tariffs at time of order.';
   doc.text(doc.splitTextToSize(disc,W-2*M),M,y);
@@ -521,23 +601,99 @@ function buildPDF(){
   doc.save(`Nutrapack-Draft-Quote-${ds}.pdf`);
 }
 
+/* ===== PRICE LIST ===== */
+function renderTable(){
+  const tb=$('#rows'); tb.innerHTML='';
+  const group=l=>{const tr=document.createElement('tr');tr.className='grouprow';tr.innerHTML=`<td colspan="10">${l}</td>`;tb.appendChild(tr);};
+  const rowFor=(item,kind)=>{
+    const e=unitEconomics(item,kind), full=item.pcs?e.sells[0]*item.pcs:null;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${item.name}</td><td class="num">${item.pcs?item.pcs.toLocaleString():'—'}</td>
+      <td class="num">${money(item.factory)}</td><td class="num">${money(e.addOn)}</td>
+      <td>${kind==='lid'?`<span style="color:var(--ink-3);font-style:italic" title="included in pricing">included</span>`:`<input class="tarinp num" data-id="${item.id}" type="number" step="0.001" value="${tariffOf(item.id)}">`}</td>
+      <td class="num">${money(e.landed)}</td><td class="num hero-col">${money(e.sells[0],3)}</td>
+      <td class="num">${money(e.sells[1],3)}</td><td class="num">${money(e.sells[2],3)}</td><td class="num">${money2(full)}</td>`;
+    tb.appendChild(tr);
+  };
+  group('Tubs — India'); cur().tubs.forEach(i=>rowFor(i,'tub'));
+  group('Lids — China'); cur().lids.forEach(i=>rowFor(i,'lid'));
+  group('Sets — Tub + Lid');
+  cur().tubs.forEach(t=>{
+    const e=setEconomics(t), tr=document.createElement('tr');
+    tr.innerHTML=`<td>${t.name.replace('Tub','Set')} <span style="color:var(--ink-3)">+ ${cur().sets[t.id]}</span></td>
+      <td class="num">—</td><td class="num">${money(t.factory+e.lid.factory)}</td><td class="num">${money(unitEconomics(t,'tub').addOn)}</td>
+      <td class="num" style="color:var(--ink-3)">${money(tariffOf(t.id)+tariffOf(e.lid.id))}</td>
+      <td class="num">${money(e.landed)}</td><td class="num hero-col">${money(e.sells[0],3)}</td>
+      <td class="num">${money(e.sells[1],3)}</td><td class="num">${money(e.sells[2],3)}</td><td class="num">—</td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll('.tarinp').forEach(inp=>inp.addEventListener('input',e=>{S.tariff[e.target.dataset.id]=parseFloat(e.target.value)||0;renderResult();}));
+}
+
+function refreshShipNote(){ $('#shipTotal').textContent=money2(containerCosts()); }
+function recomputeAll(){ refreshShipNote(); renderTable(); renderResult(); renderMarket(); renderQuick(); }
+
 /* ===== WIRING ===== */
 function readShip(){ S.freight=+$('#freight').value||0; S.portc=+$('#portc').value||0; S.truck=+$('#truck').value||0; S.ware=+$('#ware').value||0; }
+$('#verSel').addEventListener('change',()=>{
+  VI=+$('#verSel').value;
+  [...cur().tubs,...cur().lids].forEach(i=>S.tariff[i.id]=i.tariff);
+  updateVerNote(); buildDropdown(); applyLane(); quick={}; recomputeAll();
+});
 $('#origin').addEventListener('change',()=>{applyLane();recomputeAll();});
 $('#port').addEventListener('change',()=>{applyLane();recomputeAll();});
 ['freight','portc','truck','ware'].forEach(id=>$('#'+id).addEventListener('input',()=>{readShip();recomputeAll();}));
-$('#prod').addEventListener('change',renderResult);
+$('#prod').addEventListener('change',()=>{
+  $('#customFields').style.display = $('#prod').value.startsWith('custom') ? 'block' : 'none';
+  renderResult();
+});
+[['custName','name',v=>v],['custFactory','factory',v=>parseFloat(v)||0],['custTariff','tariff',v=>parseFloat(v)||0],['custPcs','pcs',v=>parseInt(v)||0],['custPpp','ppp',v=>parseInt(v)||0]].forEach(([id,key,fn])=>{
+  $('#'+id).addEventListener('input',e=>{ custom[key]=fn(e.target.value); renderResult(); });
+});
 $('#qty').addEventListener('input',renderResult);
-$('#qmargin').addEventListener('change',renderResult);
-$('#mode').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;$('#mode .on').classList.remove('on');e.target.classList.add('on');$('#qtyLabel').textContent=e.target.dataset.m==='units'?'Number of units':'Number of containers';$('#qty').value=e.target.dataset.m==='units'?50000:1;renderResult();});
-$('#reset').addEventListener('click',()=>{resetState();buildLaneSelectors();$('#freight').value=4000;$('#portc').value=400;$('#truck').value=1500;$('#ware').value=0;applyLane();recomputeAll();});
+$('#qmargin').addEventListener('change',()=>{renderResult();renderQuick();});
+$('#mode').addEventListener('click',e=>{
+  if(e.target.tagName!=='BUTTON')return;
+  $('#mode .on').classList.remove('on'); e.target.classList.add('on');
+  const m=e.target.dataset.m;
+  $('#qtyLabel').textContent = m==='units'?'Number of units':m==='pallets'?'Number of pallets':'Number of containers';
+  $('#qty').value='';
+  renderResult(); renderQuick();
+});
 $('#addLine').addEventListener('click',addToQuote);
+$('#quick').addEventListener('input',e=>{
+  const t=e.target; if(!t.classList.contains('qk-qty'))return;
+  const key=t.dataset.key; quick[key]=parseFloat(t.value)||0;
+  const [kind,id]=key.split(':');
+  const item=kind==='set'?cur().tubs.find(x=>x.id===id):find(id);
+  const mode=$('#mode .on').dataset.m, mi=+$('#qmargin').value;
+  const mult=multiplierFor(kind,item,mode);
+  const econ=kind==='set'?setEconomics(item):unitEconomics(item,kind);
+  const cell=$('#quick').querySelector(`.qk-tot[data-key="${key}"]`);
+  if(cell) cell.textContent=(mult&&quick[key])?money2(econ.sells[mi]*quick[key]*mult):'\u2014';
+});
+$('#quick').addEventListener('click',e=>{
+  if(e.target.id!=='qkAdd')return;
+  const mode=$('#mode .on').dataset.m, mi=+$('#qmargin').value;
+  let added=0;
+  quickRows().forEach(r=>{
+    const key=r.kind+':'+r.item.id, qty=quick[key]||0;
+    if(qty>0){ const l=buildLine(r.kind,r.item,qty,mode,mi); if(l){ quote.lines.push(l); added++; } }
+  });
+  if(added){ quick={}; renderQuick(); renderQuote(); }
+});
+
 $('#qcust').addEventListener('input',()=>{quote.customer=$('#qcust').value;});
 $('#clearQuote').addEventListener('click',()=>{quote.lines=[];renderQuote();});
 $('#pdfBtn').addEventListener('click',buildPDF);
+$('#reset').addEventListener('click',()=>{
+  resetState();
+  ['freight','portc','truck','ware','qty'].forEach(id=>$('#'+id).value='');
+  buildLaneSelectors(); applyLane(); recomputeAll();
+});
 
 /* init */
-buildLaneSelectors(); buildDropdown(); applyLane(); recomputeAll(); renderQuote(); loadMarket();
+buildVersionSel(); buildLaneSelectors(); buildDropdown(); applyLane(); recomputeAll(); renderQuote(); loadMarket();
 </script>
 </body>
 </html>
