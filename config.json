@@ -1,0 +1,10 @@
+{
+  "owner": "plasticsgod",
+  "repo": "NPCKAPP",
+  "enc": {
+    "salt": "jBFdeyF9F528X+45CmvxmA==",
+    "iv": "uaCndg8Syxtc7OWT",
+    "ct": "7qB+dGgdGi8nv/QbPjGWJj3VVe6PmUpJYiq0TW5uxWUPyJzPOf68RqZniPXRxIj6UZ4pILGORer8sfszCqLAj0Xto+hb7ES8Rj2NcarRME+ZO0/HlWyPJCmphplKpW0Dkfcw1j/MJE1DO79GaA==",
+    "iter": 310000
+  }
+}
